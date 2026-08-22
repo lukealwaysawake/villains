@@ -85,7 +85,9 @@ h1, h2, h3 { font-family: Fraunces, serif; font-weight: 560; letter-spacing: -0.
 }
 .screen.play {
   padding: calc(10px + var(--safe-top)) 10px calc(12px + var(--safe-bot));
-  background: radial-gradient(120% 80% at 50% 40%, #226344 0%, var(--felt) 38%, var(--felt-2) 100%);
+  background:
+    radial-gradient(120% 80% at 50% 38%, rgba(40,110,72,0.28) 0%, rgba(8,20,14,0.72) 62%, #050807 100%),
+    url("/table/felt.jpg") center / 240px repeat #0c2418;
 }
 
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
@@ -687,4 +689,216 @@ input[type="range"] { width: 100%; accent-color: var(--gold); margin-top: 8px; }
 @keyframes shimmer {
   from { background-position: 200% 0; }
   to { background-position: -200% 0; }
+}
+
+/* live table */
+.table.live { isolation: isolate; }
+.felt-wood {
+  position: absolute;
+  inset: 8% 4% 14%;
+  border-radius: 50%;
+  background: url("/table/wood.jpg") center / 180px repeat #3a2414;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.45), inset 0 0 0 2px rgba(255,220,150,0.12);
+  pointer-events: none;
+}
+.felt-ring {
+  inset: 12% 8% 18%;
+  background:
+    radial-gradient(80% 70% at 50% 45%, rgba(70,150,100,0.18), transparent 62%),
+    url("/table/felt.jpg") center / 160px repeat #145232;
+  border: 1.5px solid rgba(212,175,88,0.28);
+  box-shadow: inset 0 0 40px rgba(0,0,0,0.35), 0 0 0 9px rgba(20,14,8,0.55);
+}
+.felt-well {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 210px;
+  height: 92px;
+  transform: translate(-50%, -50%);
+  border-radius: 46px;
+  border: 1px dashed rgba(240,212,138,0.18);
+  pointer-events: none;
+}
+.street-flash {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  font-family: Fraunces, serif;
+  letter-spacing: 0.28em;
+  font-size: 13px;
+  color: #f3e6c0;
+  text-shadow: 0 2px 12px #000;
+  animation: streetIn 0.9s var(--ease) both;
+  pointer-events: none;
+  z-index: 5;
+}
+.pcard-3d {
+  width: 34px;
+  height: 48px;
+  perspective: 420px;
+  animation: dealIn 0.38s var(--ease) both;
+}
+.pcard-3d.lg { width: 54px; height: 76px; }
+.pcard-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+}
+.pcard-3d.flip .pcard-inner { animation: flipCard 0.42s var(--ease) both; }
+.pcard-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  backface-visibility: hidden;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.35);
+}
+.pcard-3d.lg .pcard-face { border-radius: 8px; }
+.pcard-back {
+  background:
+    repeating-linear-gradient(45deg, rgba(212,175,88,0.18) 0 3px, transparent 3px 7px),
+    linear-gradient(160deg, #6e1e28, #3a1016);
+  border: 1px solid #8a2d38;
+}
+.pcard-back i {
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgba(240,212,138,0.35);
+  border-radius: 4px;
+}
+.pcard-front {
+  background: linear-gradient(180deg, #fffaf1, #efe4d2);
+  color: #141414;
+  transform: rotateY(180deg);
+  overflow: hidden;
+}
+.pcard-front.red { color: #c0392b; }
+.pcard-front .idx {
+  position: absolute;
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 700;
+}
+.pcard-3d.lg .pcard-front .idx { font-size: 11px; }
+.pcard-front .idx em { display: block; font-style: normal; }
+.pcard-front .idx.tl { top: 3px; left: 3px; }
+.pcard-front .idx.br { right: 3px; bottom: 3px; transform: rotate(180deg); }
+.pcard-front .pips { position: absolute; inset: 0; }
+.pcard-front .pips span {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+}
+.pcard-3d.lg .pcard-front .pips span { font-size: 13px; }
+.pcard-front .court {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: Fraunces, serif;
+  font-size: 18px;
+}
+.pcard-3d.lg .pcard-front .court { font-size: 26px; }
+.pcard-slot {
+  width: 34px;
+  height: 48px;
+  border-radius: 6px;
+  border: 1px dashed rgba(243,230,192,0.16);
+  background: rgba(0,0,0,0.12);
+}
+.hole.mini { transform: scale(0.78); transform-origin: bottom center; margin-bottom: 0; }
+.seat.fold .hole { animation: foldAway 0.35s var(--ease) both; }
+.seat.fold .pcard-3d { filter: grayscale(0.7); }
+.dealer {
+  position: absolute;
+  left: -6px;
+  top: 18px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #f4efe4;
+  color: #1a140c;
+  font-size: 10px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  z-index: 4;
+}
+.last-act {
+  position: absolute;
+  top: -14px;
+  background: #11140f;
+  color: #f3e6c0;
+  border: 1px solid rgba(212,175,88,0.35);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 99px;
+  white-space: nowrap;
+  animation: rise 0.2s var(--ease);
+  z-index: 6;
+}
+.last-act.fold { color: #f0c2ba; border-color: #7a3a32; }
+.last-act.raise, .last-act.bet, .last-act.allin { color: #ead28a; }
+.bet-pile {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #f3e6c0;
+  animation: chipIn 0.32s var(--ease);
+}
+.chip-stack {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  display: inline-block;
+}
+.chip-stack i {
+  position: absolute;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: url("/table/chip.jpg") center / cover #c9a227;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.45);
+}
+.pot { display: flex; align-items: center; gap: 8px; }
+.seat-ava { position: relative; }
+.timer {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: var(--gold-2);
+  animation: spin 1.1s linear infinite;
+  pointer-events: none;
+}
+.seat.allin .seat-card { box-shadow: 0 0 0 1px #d16452; }
+.win-banner { animation: potPop 0.4s var(--ease); }
+@keyframes dealIn {
+  from { opacity: 0; transform: translateY(-22px) rotate(-12deg) scale(0.8); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes flipCard {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(180deg); }
+}
+@keyframes foldAway {
+  to { opacity: 0.2; transform: translateY(10px) rotate(18deg) scale(0.86); }
+}
+@keyframes chipIn {
+  from { opacity: 0; transform: translateY(-10px) scale(0.8); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes streetIn {
+  0% { opacity: 0; letter-spacing: 0.5em; }
+  25% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@media (max-height: 720px) {
+  .pcard-3d.lg { width: 46px; height: 66px; }
+  .felt-wood { inset: 7% 3% 13%; }
 }

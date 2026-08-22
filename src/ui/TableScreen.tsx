@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { applyAction, createFreshPlayers, describeAction, legalActions, positionFor, potTotal, seatCount, sizingPresets, startHand, type TableState } from "../engine/game";
+import { applyAction, createFreshPlayers, describeAction, legalActions, sizingPresets, startHand, type TableState } from "../engine/game";
 import { BB } from "../engine/types";
 import { analyzeHand, type ReviewCard } from "../review/analyze";
 import { scoreDecisionAsync } from "../review/evClient";
@@ -7,14 +7,9 @@ import { commitHand, isPro, persistLive, remainingDailyHands, type Profile, type
 import { VILLAIN_BY_ID } from "../villains/catalog";
 import { decideVillain, delayFor } from "../villains/policy";
 import { maybeSpeak, onHandEnd, sessionStartLines, updateHeroRead, type SpeechEvent } from "../villains/runtime";
-import { Avatar, PlayingCard, bb, signedBb } from "./bits";
+import { FeltTable } from "./FeltTable";
+import { bb, signedBb } from "./bits";
 import { coachLine } from "./coach";
-
-function visualClass(seat: number, n: number): string {
-  if (n <= 4) return ["s0", "s1", "s3", "s5"][seat] ?? "s3";
-  if (n === 5) return ["s0", "s1", "s2", "s4", "s5"][seat] ?? "s3";
-  return ["s0", "s1", "s2", "s3", "s4", "s5"][seat] ?? "s0";
-}
 
 function deal(s: Session): TableState {
   s.handNumber += 1;
@@ -213,12 +208,10 @@ export function TableScreen({
     setTable(applyAction(table, type, to));
   }
 
-  const n = table ? seatCount(table) : 6;
   const hero = table?.players[0];
   const legal = table && table.toAct === 0 ? legalActions(table, 0) : null;
   const presets = legal ? sizingPresets(legal) : [];
   const heroTurn = !!table && table.toAct === 0 && table.street !== "complete";
-  const pot = table ? potTotal(table) : 0;
   const tutorialOn = session.tutorial && session.handsPlayed < 30;
   const coach = table && (session.coachOn || tutorialOn) && heroTurn ? coachLine(table) : null;
   const canL2 = isPro(profile) || session.l2Used < 3;
@@ -253,73 +246,15 @@ export function TableScreen({
         </div>
       </div>
 
-      <div className="table">
-        <div className="felt-ring" />
-        <div className="board">
-          <div className="board-cards">
-            {table.board.map((c, i) => <PlayingCard key={i} card={c} />)}
-            {table.board.length === 0 && <div className="muted" style={{ fontSize: 12 }}>프리플랍</div>}
-          </div>
-          <div className="pot">팟 {bb(pot)}</div>
-          {table.street === "complete" && table.result && (
-            <>
-              <div className="insight" style={{ marginTop: 8, padding: "8px 10px", minWidth: 160 }}>
-                <div className={table.result.heroDelta >= 0 ? "good" : "bad"}>
-                  {table.result.heroDelta >= 0 ? "이 핸드 +" : "이 핸드 -"}{bb(Math.abs(table.result.heroDelta))}
-                </div>
-              </div>
-              <div className="board-cards" style={{ marginTop: 6 }}>
-                {Object.entries(table.result.shown).slice(0, 3).map(([seat, hole]) => (
-                  <span key={seat} style={{ display: "flex", gap: 2 }}>
-                    <PlayingCard card={hole[0]} />
-                    <PlayingCard card={hole[1]} />
-                  </span>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-
-        {table.players.map((p) => {
-          const def = p.id === "hero" ? null : VILLAIN_BY_ID[p.id];
-          const rt = p.id === "hero" ? null : session.runtimes[p.id];
-          const pos = positionFor(table.button, p.seat, n);
-          const showHud = profile.settings.hudMode !== "off" && !!def;
-          const full = profile.settings.hudMode === "learn" || profile.settings.hudMode === "split" || hudSeat === p.seat;
-          return (
-            <div
-              key={p.id}
-              className={`seat ${visualClass(p.seat, n)} ${table.toAct === p.seat ? "turn" : ""} ${p.folded ? "fold" : ""}`}
-              onClick={() => p.id !== "hero" && setHudSeat(hudSeat === p.seat ? null : p.seat)}
-            >
-              {speech?.villainId === p.id && <div className="bubble">{speech.line}</div>}
-              {p.id === "hero" && hero.hole && (
-                <div className="hole">
-                  <PlayingCard key={`${table.handNumber}-a`} card={hero.hole[0]} large />
-                  <PlayingCard key={`${table.handNumber}-b`} card={hero.hole[1]} large />
-                </div>
-              )}
-              <Avatar id={p.id} />
-              <div className="seat-card">
-                <div className="nm">{p.id === "hero" ? "나" : def?.name} · {pos}</div>
-                <div className="st">{bb(p.stack)}</div>
-                {showHud && def && (
-                  <div className="tool-chips">
-                    <span className="tool-chip">VPIP {def.baseStats.vpip}</span>
-                    <span className="tool-chip">PFR {def.baseStats.pfr}</span>
-                    {full && <span className="tool-chip">{pos} VPIP {def.positionalStats?.[pos]?.vpip ?? def.baseStats.vpip}</span>}
-                    {full && <span className="tool-chip">3b {def.baseStats.threeBet}</span>}
-                    <span className="tool-chip">AF {def.baseStats.aggressionFactor}</span>
-                  </div>
-                )}
-                {rt && rt.emotion !== "NORMAL" && <div className="emo">{rt.emotion}</div>}
-                {thinking === p.id && <div className="orbit" aria-label="생각 중" />}
-              </div>
-              {p.contributedStreet > 0 && <div className="chip">{bb(p.contributedStreet)}</div>}
-            </div>
-          );
-        })}
-      </div>
+      <FeltTable
+        table={table}
+        session={session}
+        profile={profile}
+        thinking={thinking}
+        speech={speech}
+        hudSeat={hudSeat}
+        setHudSeat={setHudSeat}
+      />
 
       {coach && <div className="toast">{coach}</div>}
 

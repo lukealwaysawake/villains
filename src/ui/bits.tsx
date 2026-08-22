@@ -1,18 +1,7 @@
-import type { Card } from "../engine/types";
-import { RANK_GLYPH, SUIT_GLYPH, isRed } from "../engine/cards";
 import { chipsToBb } from "../engine/types";
 import { VILLAIN_BY_ID } from "../villains/catalog";
 import type { Screen } from "../state/store";
-
-export function PlayingCard({ card, hidden, large }: { card?: Card | null; hidden?: boolean; large?: boolean }) {
-  if (!card || hidden) return <div className={`pcard back ${large ? "lg" : ""}`} />;
-  return (
-    <div className={`pcard ${isRed(card) ? "red" : ""} ${large ? "lg" : ""}`}>
-      <span>{RANK_GLYPH[card.rank]}</span>
-      <span>{SUIT_GLYPH[card.suit]}</span>
-    </div>
-  );
-}
+export { PlayingCard, ChipStack } from "./PlayingCard";
 
 export function Avatar({ id, size = "sm" }: { id: string; size?: "sm" | "lg" }) {
   if (id === "hero") {
