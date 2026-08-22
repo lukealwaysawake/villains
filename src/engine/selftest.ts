@@ -13,7 +13,7 @@ import { decideVillain, delayFor } from "../villains/policy";
 import { EXPLOIT_RULES, type RuleContext } from "../review/rules";
 import type { Action, ActionType, Street } from "./types";
 import type { DecisionEv, DecisionSnapshot } from "../review/ev";
-import { buildDecisionAnalyses } from "../review/coaching";
+import { attachDecisionAnalyses, buildDecisionAnalyses } from "../review/coaching";
 import {
   buildGuidance,
   confidenceFor,
@@ -319,6 +319,13 @@ const pricedReview: ReviewCard = {
   statValue: "",
   viewed: false,
 };
+const exploitMissReview = attachDecisionAnalyses(
+  { ...pricedReview, id: "exploit-miss-review", severity: "green", totalLossBb: 0 },
+  [{ ...coachingDecision("79", 4, 100, 60), exploitLossBb: 2.2 }],
+  "final",
+);
+assert(exploitMissReview.severity === "yellow", "a weak exploit component must stay in the correction queue even when the overall score is above 80");
+assert(exploitMissReview.statValue.includes("종합 88점"), "review summary should distinguish the weighted overall score from its weaker component");
 const pricedHabit = recordHabit([], pricedReview)[0] as ReturnType<typeof recordHabit>[number] & { totalLossDollars?: number };
 assert(pricedHabit.totalLossDollars === 50, "habit ledger must persist exact dollar loss at the originating stake");
 const pendingProfile = defaultProfile();

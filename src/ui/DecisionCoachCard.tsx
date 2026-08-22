@@ -37,13 +37,17 @@ export function DecisionCoachCard({
   const scoreClass = uncertain ? "caution" : score >= 95 ? "best" : score >= 80 ? "good" : score >= 65 ? "caution" : "mistake";
   const confidence = confidenceKo(analysis.confidence);
   const loss = Math.max(analysis.baselineLossBb, analysis.exploitLossBb ?? 0);
+  const exploitDrivesLoss = analysis.exploitScore !== undefined
+    && (analysis.exploitLossBb ?? 0) >= analysis.baselineLossBb;
+  const lossScore = exploitDrivesLoss ? analysis.exploitScore! : analysis.fundamentalsScore;
+  const lossLabel = `${exploitDrivesLoss ? "상대 맞춤" : "기본기"} · ${scoreLabel(lossScore)}`;
   const guidance = decisionDisplayGuidance(analysis);
   const next = guidance.nextRule;
 
   return (
     <article
       className={`decision-coach ${compact ? "compact" : "full"}`}
-      aria-label={`코칭 점수 ${uncertain ? "잠정 " : ""}${score}점, ${label}, 신뢰도 ${confidence}`}
+      aria-label={`종합 코칭 점수 ${uncertain ? "잠정 " : ""}${score}점, ${label}, 신뢰도 ${confidence}`}
     >
       <header className="coach-head">
         <div className={`coach-score score-${scoreClass}`}><strong>{score}</strong><span>{uncertain ? "잠정" : "점"}</span></div>
@@ -60,7 +64,7 @@ export function DecisionCoachCard({
         <div><dt>내 선택</dt><dd>{analysis.played.label}<em>{signed(analysis.played.evBb)}</em></dd></div>
         <div><dt>기본 전략 근사</dt><dd>{analysis.baselineBest.label}<em>{signed(analysis.baselineBest.evBb)}</em></dd></div>
         {analysis.exploitBest && <div><dt>상대 맞춤</dt><dd>{analysis.exploitBest.label}<em>{analysis.exploitScore === undefined ? "—" : `${Math.round(analysis.exploitScore)}점`}</em></dd></div>}
-        <div><dt>추정 손실</dt><dd>{uncertain ? "판단 보류" : loss > 0 ? `${loss.toFixed(1)}bb` : "없음"}<em>{uncertain && analysis.baselineRawLossBb !== undefined ? `원시 차이 ${analysis.baselineRawLossBb.toFixed(1)}bb` : label}</em></dd></div>
+        <div><dt>추정 손실</dt><dd>{uncertain ? "판단 보류" : loss > 0 ? `${loss.toFixed(1)}bb` : "없음"}<em>{uncertain && analysis.baselineRawLossBb !== undefined ? `원시 차이 ${analysis.baselineRawLossBb.toFixed(1)}bb` : lossLabel}</em></dd></div>
       </dl>
 
       <div className="coach-next">

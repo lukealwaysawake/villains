@@ -28,7 +28,12 @@ export function SessionRecap({
   const coaching = summarizeCoachingSession(analyses);
   const uncertainCount = analyses.filter(decisionNeedsMoreSamples).length;
   const pendingCount = reviews.filter((review) => review.analysisStatus === "preliminary").length;
-  const bestDecision = [...analyses].filter((analysis) => analysis.overallScore >= 80 && !decisionNeedsMoreSamples(analysis)).sort((left, right) => right.overallScore - left.overallScore)[0];
+  const bestDecision = [...analyses].filter((analysis) => (
+    analysis.overallScore >= 80
+    && analysis.fundamentalsScore >= 80
+    && (analysis.exploitScore === undefined || analysis.exploitScore >= 80)
+    && !decisionNeedsMoreSamples(analysis)
+  )).sort((left, right) => right.overallScore - left.overallScore)[0];
   const patternMap = new Map<string, { count: number; misses: number; loss: number; analysis: typeof analyses[number] }>();
   for (const analysis of analyses) {
     const item = patternMap.get(analysis.patternId) ?? { count: 0, misses: 0, loss: 0, analysis };

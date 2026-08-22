@@ -286,7 +286,8 @@ export function attachDecisionAnalyses(
   const uncertain = decisionNeedsMoreSamples(primary);
   const displayGuidance = decisionDisplayGuidance(primary);
   const label = uncertain ? "판단 보류" : scoreLabel(overall);
-  const severity = overall < 40 ? "red" : overall < 80 ? "yellow" : "green";
+  const weakestComponent = Math.min(primary.fundamentalsScore, primary.exploitScore ?? 100);
+  const severity = weakestComponent < 40 ? "red" : weakestComponent < 80 ? "yellow" : "green";
   const loss = round1(Math.max(primary.baselineLossBb, primary.exploitLossBb ?? 0));
   return {
     ...scoredReview,
@@ -297,7 +298,7 @@ export function attachDecisionAnalyses(
     body: displayGuidance.evidence[0] ?? displayGuidance.principle,
     alt: `${displayGuidance.nextRule.condition} ${displayGuidance.nextRule.action}`,
     statLabel: "코칭 점수",
-    statValue: `${uncertain ? "잠정 " : ""}${overall}점 · ${label}`,
+    statValue: `${uncertain ? "잠정 " : ""}종합 ${overall}점 · ${label}`,
     villainId: primary.context.opponentId ?? scoredReview.villainId,
     leak: primary.exploitRuleId ? VILLAIN_BY_ID[primary.context.opponentId ?? ""]?.leaks[0]?.type : scoredReview.leak,
     patternTag: primary.patternId,
