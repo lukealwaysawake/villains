@@ -547,15 +547,3 @@ function Fairness({ session, go }: { session: Session | null; go: (s: Screen) =>
     </section>
   );
 }
-    </div>
-      <button className="btn wide" onClick={() => go("settings")}>설정으로</button>
-    </section>
-  );
-}
-</div>
-        ))}
-      </div>
-      <button className="btn wide" onClick={() => go("settings")}>설정으로</button>
-    </section>
-  );
-}
