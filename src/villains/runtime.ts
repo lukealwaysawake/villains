@@ -151,6 +151,3 @@ export function updateHeroRead(rt: VillainRuntime, state: TableState): void {
     if (rt.heroRead.threeBetFreq > 0.12 && rt.heroRead.hands >= 16) rt.fourBetBoost = 2;
   }
 }
-ost = 2;
-  }
-}
