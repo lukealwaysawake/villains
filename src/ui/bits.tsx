@@ -1,6 +1,6 @@
-import { chipsToBb } from "../engine/types";
 import { VILLAIN_BY_ID } from "../villains/catalog";
 import type { Screen } from "../state/store";
+export type { Screen };
 export { PlayingCard, ChipStack } from "./PlayingCard";
 
 export function Avatar({ id, size = "sm" }: { id: string; size?: "sm" | "lg" }) {
@@ -43,7 +43,7 @@ export function Nav({ screen, go, hidden }: { screen: Screen; go: (s: Screen) =>
   const items: { id: Screen; label: string; icon: string }[] = [
     { id: "home", label: "홈", icon: "V" },
     { id: "dex", label: "도감", icon: "15" },
-    { id: "reviews", label: "리뷰", icon: "R" },
+    { id: "analyze", label: "분석", icon: "A" },
     { id: "settings", label: "설정", icon: "·" },
   ];
   return (

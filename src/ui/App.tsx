@@ -26,7 +26,7 @@ import { verifyCommit } from "../engine/fairness";
 import { roundRobin } from "../engine/sim";
 import { Avatar, Nav, Stars, signedBb } from "./bits";
 import { TableScreen } from "./TableScreen";
-import { History } from "./History";
+import { Analyze } from "./Analyze";
 import { CreateRoom } from "./CreateRoom";
 
 export function App() {
@@ -117,7 +117,7 @@ export function App() {
       )}
       {screen === "settings" && <SettingsScreen profile={profile} setProfile={setProfile} go={go} />}
       {screen === "fairness" && <Fairness session={session} go={go} />}
-      {screen === "history" && <History profile={profile} go={go} />}
+      {(screen === "history" || screen === "analyze") && <Analyze profile={profile} go={go} />}
       {screen === "create-room" && (
         <CreateRoom
           profile={profile}
@@ -203,7 +203,7 @@ function Home({
         <div className="meter"><i style={{ width: "46%" }} /></div>
       </div>
       <button className="btn launch wide" style={{ margin: "12px 0" }} onClick={() => go("lobby")}>테이블 앉기</button>
-      <button className="btn glass wide" onClick={() => go("history")}>플레이 기록 {profile.lifetimeHands}핸드</button>
+      <button className="btn glass wide" onClick={() => go("analyze")}>플레이 기록 {profile.lifetimeHands}핸드</button>
       <div className="row" style={{ margin: "8px 0 10px" }}>
         <b>빌런 숙련도</b>
         <button className="btn ghost" onClick={() => go("dex")}>도감</button>
@@ -354,7 +354,7 @@ function Report({ session, profile, go }: { session: Session; profile: Profile; 
       )}
       <button className="btn launch wide" onClick={() => go("home")}>홈으로</button>
       <button className="btn wide" style={{ marginTop: 8 }} onClick={() => go("reviews")}>리뷰 몰아보기</button>
-      <button className="btn glass wide" style={{ marginTop: 8 }} onClick={() => go("history")}>플레이 기록</button>
+      <button className="btn glass wide" style={{ marginTop: 8 }} onClick={() => go("analyze")}>플레이 기록</button>
     </section>
   );
 }
