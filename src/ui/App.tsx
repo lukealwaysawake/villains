@@ -23,7 +23,7 @@ import {
 } from "../state/store";
 import { verifyCommit } from "../engine/fairness";
 import { roundRobin } from "../engine/sim";
-import { Avatar, Nav, Stars, signedBb } from "./bits";
+import { Avatar, Nav, PlayingCard, ChipStack, Stars, signedBb } from "./bits";
 import { TableScreen } from "./TableScreen";
 import { Analyze } from "./Analyze";
 import { CreateRoom } from "./CreateRoom";
@@ -137,8 +137,25 @@ function Onboarding({ onDone }: { onDone: () => void }) {
     <section className="screen boot">
       <div className="splash-hero" aria-hidden="true" />
       <div className="splash-shade" aria-hidden="true" />
-      <img className="splash-mark" src="/brand/mark.jpg" alt="" />
-      <div className="eyebrow">VILLAINS</div>
+      <div className="boot-top">
+        <img className="splash-mark" src="/brand/mark.jpg" alt="" />
+        <div className="eyebrow">VILLAINS</div>
+      </div>
+      <div className="boot-stage" aria-hidden="true">
+        <div className="boot-felt">
+          <div className="boot-cards">
+            <PlayingCard card={{ rank: 14, suit: 1 }} delay={40} />
+            <PlayingCard card={{ rank: 13, suit: 1 }} delay={90} />
+            <PlayingCard card={{ rank: 12, suit: 0 }} delay={140} />
+            <PlayingCard card={{ rank: 11, suit: 2 }} delay={190} />
+            <PlayingCard card={{ rank: 10, suit: 3 }} delay={240} />
+          </div>
+          <div className="boot-pot"><ChipStack n={4} /> POT</div>
+        </div>
+        <div className="boot-ava a1"><Avatar id="uncleho" /></div>
+        <div className="boot-ava a2"><Avatar id="nitlee" /></div>
+        <div className="boot-ava a3"><Avatar id="stationpark" /></div>
+      </div>
       <h1 className="brand on-title">읽을 수 있는<br/>상대</h1>
       {step === 0 && (
         <div className="on-body">
