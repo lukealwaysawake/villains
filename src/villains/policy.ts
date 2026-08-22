@@ -23,6 +23,8 @@ const POS_OPEN_MULT: Record<Position, number> = {
   BB: 0.55,
 };
 
+const POS_NORM = 6 / Object.values(POS_OPEN_MULT).reduce((s, v) => s + v, 0);
+
 function mergedStats(id: string, pos: Position): PokerStats {
   const def = VILLAIN_BY_ID[id];
   return { ...def.baseStats, ...(def.positionalStats?.[pos] ?? {}) };
