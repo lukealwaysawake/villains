@@ -3,7 +3,7 @@ import { applyAction, createFreshPlayers, legalActions, sizingPresets, startHand
 import { BB } from "../engine/types";
 import { analyzeHand, type ReviewCard } from "../review/analyze";
 import { scoreDecisionAsync } from "../review/evClient";
-import { commitHand, isPro, persistLive, remainingDailyHands, type Profile, type Session } from "../state/store";
+import { commitHand, persistLive, remainingDailyHands, type Profile, type Session } from "../state/store";
 import { decideVillain, delayFor } from "../villains/policy";
 import { maybeSpeak, onHandEnd, sessionStartLines, updateHeroRead, type SpeechEvent } from "../villains/runtime";
 import { FeltTable } from "./FeltTable";
@@ -238,7 +238,7 @@ export function TableScreen({
   const heroTurn = !!table && table.toAct === 0 && table.street !== "complete";
   const tutorialOn = session.tutorial && session.handsPlayed < 30;
   const coach = table && (session.coachOn || tutorialOn) && heroTurn ? coachLine(table) : null;
-  const canL2 = isPro(profile) || session.l2Used < 3;
+  const canL2 = true;
 
 
   if (blocked) {

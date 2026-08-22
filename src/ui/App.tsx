@@ -1,17 +1,13 @@
 import { useMemo, useState } from "react";
-import { PRESETS, VILLAINS, VILLAIN_BY_ID } from "../villains/catalog";
+import { VILLAINS, VILLAIN_BY_ID } from "../villains/catalog";
 import {
-  canUsePreset,
-  canUseVillain,
   createSession,
-  isPro,
   isUnlocked,
   loadProfile,
   masteryPct,
   saveProfile,
   archiveSession,
   canShowHint,
-  saveCombo,
   exportProfile,
   importProfile,
   topHabits,
@@ -22,7 +18,7 @@ import {
 } from "../state/store";
 import { verifyCommit } from "../engine/fairness";
 import { roundRobin } from "../engine/sim";
-import { Avatar, Nav, PlayingCard, ChipStack, Stars, signedBb } from "./bits";
+import { Avatar, Nav, PlayingCard, ChipStack, signedBb } from "./bits";
 import { TableScreen } from "./TableScreen";
 import { Analyze } from "./Analyze";
 import { SessionRecap } from "./SessionRecap";
@@ -33,7 +29,6 @@ export function App() {
   const [screen, setScreen] = useState<Screen>(profile.onboardingDone ? "home" : "onboarding");
   const [session, setSession] = useState<Session | null>(profile.lastSession ?? null);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [custom, setCustom] = useState<string[]>([]);
 
   function setProfile(next: Profile) {
     setProfileState(next);
@@ -45,6 +40,10 @@ export function App() {
   }
 
   function start(ids: string[], presetId?: string, tutorial = false, room?: RoomConfig) {
+    if (session && session.handsPlayed > 0 && session.liveTable && session.liveTable.street !== "complete") {
+      const ok = window.confirm("진행 중인 테이블이 있습니다. 종료하고 새로 앉을까요?");
+      if (!ok) return;
+    }
     const archived = archiveSession({ ...profile }, session);
     setProfile(archived);
     const s = createSession(ids, presetId, { tutorial, room });
@@ -65,17 +64,6 @@ export function App() {
       )}
       {screen === "home" && (
         <Home profile={profile} session={session} go={go} resume={() => session && setScreen("table")} />
-      )}
-      {screen === "lobby" && (
-        <Lobby
-          profile={profile}
-          setProfile={setProfile}
-          custom={custom}
-          setCustom={setCustom}
-          start={start}
-          back={() => go("home")}
-          go={go}
-        />
       )}
       {screen === "table" && session && (
         <TableScreen
@@ -219,95 +207,16 @@ function Home({
       </div>
       <div className="villain-grid">
         {VILLAINS.map((v) => {
-          const lock = !isUnlocked(profile, v.id);
           const pct = masteryPct(profile.mastery[v.id]);
           return (
-            <button key={v.id} className={`vcell ${lock ? "lock" : ""}`} onClick={() => go("dex")}>
+            <button key={v.id} className="vcell" onClick={() => go("dex")}>
               <Avatar id={v.id} />
-              <div className="name">{lock ? "???" : v.name}</div>
+              <div className="name">{v.name}</div>
               <div className="sub">TIER {v.tier}</div>
-              <div className="bar"><i style={{ width: `${lock ? 0 : pct}%` }} /></div>
+              <div className="bar"><i style={{ width: `${pct}%` }} /></div>
             </button>
           );
         })}
-      </div>
-    </section>
-  );
-}
-
-function Lobby({
-  profile,
-  setProfile,
-  custom,
-  setCustom,
-  start,
-  back,
-  go,
-}: {
-  profile: Profile;
-  setProfile: (p: Profile) => void;
-  custom: string[];
-  setCustom: (ids: string[]) => void;
-  start: (ids: string[], preset?: string) => void;
-  back: () => void;
-  go: (s: Screen) => void;
-}) {
-  return (
-    <section className="screen">
-      <div className="topbar">
-        <button className="btn" onClick={back}>뒤로</button>
-        <div className="eyebrow">테이블 선택</div>
-        <span />
-      </div>
-      <button className="btn launch wide" style={{ marginBottom: 12 }} onClick={() => go("create-room")}>방 만들기</button>
-      {PRESETS.map((p) => {
-        const locked = p.villains.some((id) => !isUnlocked(profile, id)) || !canUsePreset(profile, p.id) || p.villains.some((id) => !canUseVillain(profile, id));
-        return (
-          <button key={p.id} className="card" style={{ width: "100%", textAlign: "left" }} disabled={locked} onClick={() => start([...p.villains], p.id)}>
-            <div className="row">
-              <b>{p.name}</b>
-              <Stars n={p.stars} />
-            </div>
-            <p className="kicker">{p.goal}</p>
-            <p className="kicker">{p.villains.map((id) => VILLAIN_BY_ID[id].name).join(" · ")}</p>
-            {locked && <p className="kicker">아직 잠긴 빌런이 있습니다. 설정에서 전체 해금할 수 있습니다.</p>}
-          </button>
-        );
-      })}
-      <div className="card">
-        <b>커스텀 5명</b>
-        <p className="kicker">언락된 빌런을 골라 테이블을 만듭니다.</p>
-        <div className="villain-grid" style={{ marginTop: 8 }}>
-          {VILLAINS.map((v) => {
-            const on = custom.includes(v.id);
-            const lock = !isUnlocked(profile, v.id);
-            return (
-              <button
-                key={v.id}
-                className={`vcell ${lock ? "lock" : ""} ${on ? "sel on" : ""}`}
-                disabled={lock}
-                onClick={() => {
-                  if (on) setCustom(custom.filter((x) => x !== v.id));
-                  else if (custom.length < 5) setCustom([...custom, v.id]);
-                }}
-              >
-                <Avatar id={v.id} />
-                <div className="name">{v.name}</div>
-              </button>
-            );
-          })}
-        </div>
-        <button className="btn glass wide" style={{ marginTop: 10 }} disabled={custom.length !== 5} onClick={() => {
-          setProfile(saveCombo(profile, "조합 " + (profile.savedCombos.length + 1), custom));
-        }}>조합 저장</button>
-        <button className="btn launch wide" style={{ marginTop: 8 }} disabled={custom.length !== 5} onClick={() => start(custom)}>
-          커스텀 시작 ({custom.length}/5)
-        </button>
-        {profile.savedCombos.map((c) => (
-          <button key={c.name} className="btn glass wide" style={{ marginTop: 8 }} onClick={() => start(c.ids)}>
-            {c.name} 불러 앉기
-          </button>
-        ))}
       </div>
     </section>
   );
@@ -360,7 +269,6 @@ function Detail({
 }) {
   const v = VILLAIN_BY_ID[id];
   const m = profile.mastery[id];
-  const lock = !isUnlocked(profile, id);
   const canHint = canShowHint(profile, id);
   return (
     <section className="screen">
@@ -409,7 +317,7 @@ function Detail({
         )}
       </div>
       <p className="kicker">완벽 대응 {v.expectedBb100} bb/100</p>
-      <button className="btn primary wide" disabled={lock} onClick={duel}>이 빌런 포함해 앉기</button>
+      <button className="btn primary wide" onClick={duel}>이 빌런 포함해 앉기</button>
     </section>
   );
 }
@@ -499,24 +407,6 @@ function SettingsScreen({ profile, setProfile, go }: { profile: Profile; setProf
       <div className="card">
         <b>애니메이션</b>
         <input type="range" min={0.7} max={2} step={0.1} value={s.animSpeed} onChange={(e) => patch({ animSpeed: Number(e.target.value) })} />
-      </div>
-      <div className="card">
-        <div className="row">
-          <b>전체 빌런 해금</b>
-          <button className={`sel ${s.unlockAll ? "on" : ""}`} onClick={() => patch({ unlockAll: !s.unlockAll })}>
-            {s.unlockAll ? "ON" : "OFF"}
-          </button>
-        </div>
-        <p className="kicker">프리뷰용입니다. 끄면 기획서의 언락 순서를 따릅니다.</p>
-      </div>
-      <div className="card">
-        <div className="row">
-          <b>Pro</b>
-          <button className={`sel ${s.isPro ? "on" : ""}`} onClick={() => patch({ isPro: !s.isPro })}>
-            {s.isPro ? "ON" : "OFF"}
-          </button>
-        </div>
-        <p className="kicker">결제 연동 전 개발 스위치. 켜면 15명, 무제한 핸드, L2/패턴/조건부 HUD가 열립니다.</p>
       </div>
       <button className="btn wide" onClick={() => go("fairness")}>공정성 검증 / 자기대전</button>
       <button className="btn glass wide" style={{ marginTop: 8 }} onClick={() => {

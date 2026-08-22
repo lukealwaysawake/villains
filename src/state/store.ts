@@ -203,9 +203,8 @@ export function saveProfile(profile: Profile): void {
   localStorage.setItem(KEY, JSON.stringify(profile));
 }
 
-export function isUnlocked(profile: Profile, id: string): boolean {
-  if (profile.settings.unlockAll) return true;
-  return profile.unlocked.includes(id);
+export function isUnlocked(_profile: Profile, _id: string): boolean {
+  return true;
 }
 
 export function masteryPct(m: Mastery, expected = 15): number {
@@ -226,21 +225,16 @@ export function isPro(profile: Profile): boolean {
   return profile.settings.isPro || profile.settings.unlockAll;
 }
 
-export function remainingDailyHands(profile: Profile): number {
-  if (isPro(profile)) return 99999;
-  const d = profile.daily.date === todayKey() ? profile.daily.hands : 0;
-  return Math.max(0, 300 - d);
+export function remainingDailyHands(_profile: Profile): number {
+  return 99999;
 }
 
-export function canUseVillain(profile: Profile, id: string): boolean {
-  if (!isUnlocked(profile, id)) return false;
-  if (isPro(profile)) return true;
-  return FREE_VILLAINS.includes(id);
+export function canUseVillain(_profile: Profile, _id: string): boolean {
+  return true;
 }
 
-export function canUsePreset(profile: Profile, presetId: string): boolean {
-  if (isPro(profile)) return true;
-  return presetId === "intro";
+export function canUsePreset(_profile: Profile, _presetId: string): boolean {
+  return true;
 }
 
 export function createSession(villainIds: string[], presetId?: string, opts?: { tutorial?: boolean; seedClient?: string; room?: RoomConfig }): Session {
@@ -480,10 +474,8 @@ export function persistLive(profile: Profile, session: Session, table: TableStat
   saveProfile(profile);
 }
 
-export function canShowHint(profile: Profile, id: string): boolean {
-  if (profile.settings.unlockAll || profile.settings.isPro) return true;
-  const m = profile.mastery[id] ?? emptyMastery();
-  return m.sessionsPlayed >= 3 || m.handsPlayed >= 60;
+export function canShowHint(_profile: Profile, _id: string): boolean {
+  return true;
 }
 
 export function recordHabit(habits: HabitRecord[], review: ReviewCard): HabitRecord[] {
