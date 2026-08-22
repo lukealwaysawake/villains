@@ -9,7 +9,7 @@ import { behaviorProbe } from "./sim";
 import { scoreDecision } from "../review/ev";
 import { onHandEnd } from "../villains/runtime";
 import { createRuntime } from "../villains/types";
-import { decideVillain } from "../villains/policy";
+import { decideVillain, delayFor } from "../villains/policy";
 import { EXPLOIT_RULES, type RuleContext } from "../review/rules";
 import type { Action, ActionType, Street } from "./types";
 import type { DecisionEv, DecisionSnapshot } from "../review/ev";
@@ -18,6 +18,8 @@ import {
   buildGuidance,
   confidenceFor,
   createPatternAggregate,
+  decisionNeedsMoreSamples,
+  evChoiceNeedsMoreSamples,
   habitStatus,
   scoreFromLoss,
   scoreLabel,
@@ -70,6 +72,17 @@ assert(confidenceFor({ samples: 23, gapBb: 3 }) === "low", "small EV samples sho
 assert(confidenceFor({ samples: 32, gapBb: 0.2, ruleAgreement: true }) === "low", "tiny EV gaps should stay low confidence");
 assert(confidenceFor({ samples: 24, gapBb: 0.3 }) === "medium", "adequate sample and gap should be medium confidence");
 assert(confidenceFor({ samples: 32, gapBb: 0.3, ruleAgreement: true }) === "high", "rule agreement should permit high confidence");
+assert(evChoiceNeedsMoreSamples({ confidence: "low", adjustedLossBb: 0, rawLossBb: 1.6, uncertaintyBb: 1.33, choicesDiffer: true }), "noisy candidate separation should remain provisional");
+assert(!evChoiceNeedsMoreSamples({ confidence: "low", adjustedLossBb: 0, rawLossBb: 0.1, uncertaintyBb: 0.2, choicesDiffer: true }), "tiny raw gaps should not create a false provisional warning");
+assert(decisionNeedsMoreSamples({
+  confidence: "low",
+  baselineLossBb: 0,
+  baselineRawLossBb: 1.6,
+  baselineUncertaintyBb: 1.33,
+  played: { action: "fold", label: "폴드" },
+  baselineBest: { action: "raise", label: "레이즈" },
+} as DecisionAnalysis), "decision display should turn noisy best-action claims into a provisional judgment");
+assert(delayFor({ type: "check", raiseTo: 0, delayMs: 1200, mixKey: "timing" }, 1, true) === 80, "folded or all-in hero should fast-forward remaining villain actions");
 
 let pattern = createPatternAggregate("river.value", "opponent_exploit");
 for (let i = 0; i < 3; i += 1) {
@@ -122,6 +135,17 @@ recordDecisionAnalyses(aggregateProfile, [aggregateDecision]);
 recordDecisionAnalyses(aggregateProfile, [aggregateDecision]);
 assert(aggregateProfile.learning.patterns[aggregateDecision.patternId].opportunities === 1, "analysis pattern aggregation must be idempotent by decision id");
 assert(aggregateProfile.learning.skills.aggression?.opportunities === 1, "skill aggregation must not double count a finalized decision");
+const provisionalDecision: DecisionAnalysis = {
+  ...coachingDecision("78", 4, 100),
+  confidence: "low",
+  played: { action: "fold", label: "폴드", evBb: 0 },
+  baselineBest: { action: "raise", label: "레이즈 $2", evBb: 1.6 },
+  baselineRawLossBb: 1.6,
+  baselineUncertaintyBb: 1.33,
+};
+recordDecisionAnalyses(aggregateProfile, [provisionalDecision]);
+assert(aggregateProfile.learning.recentDecisions.some((analysis) => analysis.id === provisionalDecision.id), "provisional decisions should remain available for hand review");
+assert(!aggregateProfile.learning.patterns[provisionalDecision.patternId] && aggregateProfile.learning.skills.aggression?.opportunities === 1, "provisional decisions must not bias habit or skill aggregates");
 
 function ruleFixture(
   villainId: string,

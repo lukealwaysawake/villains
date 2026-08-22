@@ -7,6 +7,7 @@ import { detectPatterns, type ReviewCard } from "../review/analyze";
 import type { DecisionSnapshot } from "../review/ev";
 import {
   createPatternAggregate,
+  decisionNeedsMoreSamples,
   summarizeSession as summarizeCoachingDecisions,
   updatePatternAggregate,
   type DecisionAnalysis,
@@ -726,6 +727,7 @@ function createSkillAggregate(skill: SkillKey): SkillAggregate {
 }
 
 function analysisIsRecordable(analysis: DecisionAnalysis): boolean {
+  if (decisionNeedsMoreSamples(analysis)) return false;
   return analysis.analysisBasis !== "rules" || analysis.exploitScore !== undefined;
 }
 

@@ -3,7 +3,7 @@ import { VILLAIN_BY_ID } from "../villains/catalog";
 import { Segmented, signedBb, type Screen } from "./bits";
 import { formatSignedDollars, sumKnownDollars } from "./money";
 import { skillScore, type Profile } from "../state/store";
-import { habitStatus, scoreLabel, summarizeSession as summarizeCoachingSession, type HabitStatus, type SkillKey } from "../review/learning";
+import { decisionDisplayGuidance, decisionNeedsMoreSamples, habitStatus, scoreLabel, summarizeSession as summarizeCoachingSession, type HabitStatus, type SkillKey } from "../review/learning";
 
 type Tab = "pattern" | "kibo" | "session";
 
@@ -45,6 +45,7 @@ export function Analyze({
   const pfr = hs && hs.hands ? Math.round((hs.pfr / hs.hands) * 100) : 0;
   const recentDecisions = profile.learning.recentDecisions ?? [];
   const coaching = summarizeCoachingSession(recentDecisions);
+  const uncertainCount = recentDecisions.filter(decisionNeedsMoreSamples).length;
   const learningPatterns = Object.values(profile.learning.patterns)
     .map((pattern) => ({
       pattern,
@@ -95,7 +96,7 @@ export function Analyze({
             {coaching.hasData ? (
               <div className="coaching-overview-score">
                 <strong>{Math.round(coaching.overallScore)}</strong>
-                <span><b>{scoreLabel(coaching.overallScore)}</b><small>분석된 결정 {coaching.decisionCount}개</small></span>
+                <span><b>{uncertainCount > 0 ? "잠정 · " : ""}{scoreLabel(coaching.overallScore)}</b><small>분석된 결정 {coaching.decisionCount}개{uncertainCount > 0 ? ` · 판단 보류 ${uncertainCount}개` : ""}</small></span>
               </div>
             ) : <p className="kicker">아직 분석된 결정이 없습니다.</p>}
             {hs && (
@@ -108,7 +109,7 @@ export function Analyze({
             <div className="next-focus card">
               <span className="eyebrow">다음 테이블 한 가지</span>
               <b>{primaryPattern.analysis.guidance.nextRule.condition}</b>
-              <p>{primaryPattern.analysis.guidance.nextRule.action}</p>
+              <p>{decisionDisplayGuidance(primaryPattern.analysis).nextRule.action}</p>
               <small>{HABIT_LABEL[primaryPattern.status]} · {primaryPattern.pattern.misses}/{primaryPattern.pattern.opportunities} 놓침 · {primaryPattern.pattern.totalLossBb.toFixed(1)}bb</small>
             </div>
           )}
@@ -128,9 +129,9 @@ export function Analyze({
             {learningPatterns.length === 0 && <div className="empty"><img src="/brand/mark.jpg" alt="" /><p className="kicker">같은 상황이 3번 이상 쌓이면 징후를 알려드려요.</p></div>}
             {learningPatterns.map(({ pattern, status, analysis }) => (
               <div key={pattern.patternId} className="pattern-row">
-                <div className="row"><b>{analysis?.guidance.judgment ?? SKILL_LABEL[pattern.skill]}</b><span className={`habit-${status}`}>{HABIT_LABEL[status]}</span></div>
+                <div className="row"><b>{analysis ? decisionDisplayGuidance(analysis).judgment : SKILL_LABEL[pattern.skill]}</b><span className={`habit-${status}`}>{HABIT_LABEL[status]}</span></div>
                 <p>{pattern.opportunities}번 중 {pattern.misses}번 놓침 · 누적 {pattern.totalLossBb.toFixed(1)}bb</p>
-                {analysis && <small>{analysis.guidance.nextRule.condition} {analysis.guidance.nextRule.action}</small>}
+                {analysis && <small>{decisionDisplayGuidance(analysis).nextRule.condition} {decisionDisplayGuidance(analysis).nextRule.action}</small>}
               </div>
             ))}
           </div>

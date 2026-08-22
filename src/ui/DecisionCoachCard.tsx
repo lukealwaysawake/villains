@@ -1,4 +1,4 @@
-import { scoreLabel, type ConfidenceLevel, type DecisionAnalysis } from "../review/learning";
+import { decisionDisplayGuidance, decisionNeedsMoreSamples, scoreLabel, type ConfidenceLevel, type DecisionAnalysis } from "../review/learning";
 import type { AnalysisStatus } from "../review/analyze";
 import { VILLAIN_BY_ID } from "../villains/catalog";
 
@@ -32,24 +32,26 @@ export function DecisionCoachCard({
   compact?: boolean;
 }) {
   const score = Math.round(analysis.overallScore);
-  const label = scoreLabel(score);
-  const scoreClass = score >= 95 ? "best" : score >= 80 ? "good" : score >= 65 ? "caution" : "mistake";
+  const uncertain = decisionNeedsMoreSamples(analysis);
+  const label = uncertain ? "판단 보류" : scoreLabel(score);
+  const scoreClass = uncertain ? "caution" : score >= 95 ? "best" : score >= 80 ? "good" : score >= 65 ? "caution" : "mistake";
   const confidence = confidenceKo(analysis.confidence);
   const loss = Math.max(analysis.baselineLossBb, analysis.exploitLossBb ?? 0);
-  const next = analysis.guidance.nextRule;
+  const guidance = decisionDisplayGuidance(analysis);
+  const next = guidance.nextRule;
 
   return (
     <article
       className={`decision-coach ${compact ? "compact" : "full"}`}
-      aria-label={`코칭 점수 ${score}점, ${label}, 신뢰도 ${confidence}`}
+      aria-label={`코칭 점수 ${uncertain ? "잠정 " : ""}${score}점, ${label}, 신뢰도 ${confidence}`}
     >
       <header className="coach-head">
-        <div className={`coach-score score-${scoreClass}`}><strong>{score}</strong><span>점</span></div>
+        <div className={`coach-score score-${scoreClass}`}><strong>{score}</strong><span>{uncertain ? "잠정" : "점"}</span></div>
         <div>
           <div className="coach-status" role={status === "preliminary" ? "status" : undefined} aria-live={status === "preliminary" ? "polite" : undefined}>
             {STATUS_KO[status]} · 신뢰도 {confidence}
           </div>
-          <h3>{analysis.guidance.judgment}</h3>
+          <h3>{guidance.judgment}</h3>
           <p>{analysis.context.street.toUpperCase()} · 팟 {analysis.context.potBb.toFixed(1)}bb{analysis.context.opponentId ? ` · ${VILLAIN_BY_ID[analysis.context.opponentId]?.name ?? analysis.context.opponentId}` : ""}</p>
         </div>
       </header>
@@ -58,7 +60,7 @@ export function DecisionCoachCard({
         <div><dt>내 선택</dt><dd>{analysis.played.label}<em>{signed(analysis.played.evBb)}</em></dd></div>
         <div><dt>기본 전략 근사</dt><dd>{analysis.baselineBest.label}<em>{signed(analysis.baselineBest.evBb)}</em></dd></div>
         {analysis.exploitBest && <div><dt>상대 맞춤</dt><dd>{analysis.exploitBest.label}<em>{analysis.exploitScore === undefined ? "—" : `${Math.round(analysis.exploitScore)}점`}</em></dd></div>}
-        <div><dt>추정 손실</dt><dd>{loss > 0 ? `${loss.toFixed(1)}bb` : "없음"}<em>{label}</em></dd></div>
+        <div><dt>추정 손실</dt><dd>{uncertain ? "판단 보류" : loss > 0 ? `${loss.toFixed(1)}bb` : "없음"}<em>{uncertain && analysis.baselineRawLossBb !== undefined ? `원시 차이 ${analysis.baselineRawLossBb.toFixed(1)}bb` : label}</em></dd></div>
       </dl>
 
       <div className="coach-next">
@@ -72,10 +74,10 @@ export function DecisionCoachCard({
         <div className="coach-detail">
           <section>
             <b>근거</b>
-            {analysis.guidance.evidence.map((evidence) => <p key={evidence}>{evidence}</p>)}
+            {guidance.evidence.map((evidence) => <p key={evidence}>{evidence}</p>)}
           </section>
-          <section><b>원칙</b><p>{analysis.guidance.principle}</p></section>
-          <section><b>교정 목표</b><p>다음 {analysis.guidance.measurementTarget.opportunities}번의 같은 기회에서 놓침 {analysis.guidance.measurementTarget.maxMisses}회 이하</p></section>
+          <section><b>원칙</b><p>{guidance.principle}</p></section>
+          <section><b>교정 목표</b><p>다음 {guidance.measurementTarget.opportunities}번의 같은 기회에서 놓침 {guidance.measurementTarget.maxMisses}회 이하</p></section>
         </div>
       )}
     </article>

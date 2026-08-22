@@ -7,6 +7,9 @@ import type { CandidateEv, DecisionEv, DecisionSnapshot } from "./ev";
 import {
   buildGuidance,
   confidenceFor,
+  decisionDisplayGuidance,
+  decisionNeedsMoreSamples,
+  evChoiceNeedsMoreSamples,
   scoreFromLoss,
   scoreLabel,
   type ConfidenceLevel,
@@ -119,8 +122,15 @@ function generalPattern(skill: SkillKey, street: Street, played: DecisionChoice,
 
 function evidenceForEv(score: DecisionEv | undefined, played: DecisionChoice, best: DecisionChoice, lossBb: number): string[] {
   if (!score) return ["빠른 규칙 분석을 마쳤고 후보 EV 비교는 백그라운드에서 계산 중입니다."];
-  if (lossBb <= 0.1) return [`${score.samples}개 동일 표본에서 내 선택과 최고 후보의 차이가 0.1bb 이내였습니다.`];
+  const rawLoss = score.baselineRawLossBb ?? score.rawLossBb ?? lossBb;
   const uncertainty = score.baselineUncertaintyBb ?? score.uncertaintyBb ?? 0;
+  if (lossBb <= 0.1 && rawLoss > 0.1 && uncertainty > Math.max(0.25, rawLoss * 0.5)) {
+    return [
+      `${score.samples}개 동일 표본에서 ${played.label} ${played.evBb >= 0 ? "+" : ""}${played.evBb.toFixed(1)}bb, ${best.label} ${best.evBb >= 0 ? "+" : ""}${best.evBb.toFixed(1)}bb로 원시 차이는 ${rawLoss.toFixed(1)}bb였습니다.`,
+      `다만 표본 변동 ${uncertainty.toFixed(1)}bb가 커 현재 선택을 손실로 확정하지 않았습니다.`,
+    ];
+  }
+  if (lossBb <= 0.1) return [`${score.samples}개 동일 표본에서 내 선택과 최고 후보의 원시 EV 차이가 0.1bb 이내였습니다.`];
   return [
     `${score.samples}개 동일 표본에서 ${played.label} ${played.evBb >= 0 ? "+" : ""}${played.evBb.toFixed(1)}bb, ${best.label} ${best.evBb >= 0 ? "+" : ""}${best.evBb.toFixed(1)}bb였습니다.`,
     uncertainty > 0
@@ -176,9 +186,19 @@ export function buildDecisionAnalyses(input: BuildDecisionAnalysesInput): Decisi
       ? "low"
       : undefined;
     const confidence = capConfidence(capConfidence(rawConfidence, rule?.confidenceCap), noiseCap);
+    const uncertainChoice = evChoiceNeedsMoreSamples({
+      confidence,
+      adjustedLossBb: baselineLossBb,
+      rawLossBb: score?.baselineRawLossBb,
+      uncertaintyBb: baselineUncertaintyBb,
+      choicesDiffer: played.action !== baselineBest.action || played.label !== baselineBest.label,
+      hasExploitRule: !!rule,
+    });
     const patternId = rule?.countsAsOpportunity ? rule.ruleId : generalPattern(skill, street, played, baselineBest);
     const judgment = rule?.judgment
-      ?? (baselineLossBb <= 0.1
+      ?? (uncertainChoice
+        ? `${STREET_KO[street]} 선택: ${played.label} · 아직 우열을 확정하기 어렵습니다.`
+        : baselineLossBb <= 0.1
         ? `${STREET_KO[street]} 선택: ${played.label} · 최선에 가까웠습니다.`
         : `${STREET_KO[street]} 선택: ${baselineBest.label} 쪽이 더 나았습니다.`);
     const evidence = rule
@@ -189,8 +209,12 @@ export function buildDecisionAnalyses(input: BuildDecisionAnalysesInput): Decisi
       evidence,
       principle: rule?.principle ?? SKILL_PRINCIPLE[skill],
       condition: rule?.condition ?? `비슷한 ${STREET_KO[street]} 상황이 다시 오면`,
-      action: rule?.action ?? `먼저 ${baselineBest.label} 선택을 검토하세요.`,
-      exception: rule?.exception ?? (confidence === "low" ? "EV 차이가 작거나 표본이 적으면 혼합 전략으로 봅니다." : undefined),
+      action: rule?.action ?? (uncertainChoice
+        ? `${baselineBest.label} 선택을 우선 후보로 두고 같은 상황의 표본을 더 모으세요.`
+        : `먼저 ${baselineBest.label} 선택을 검토하세요.`),
+      exception: rule?.exception ?? (uncertainChoice
+        ? "표본 변동이 큰 구간이라 현재 선택을 실수로 확정하지 않습니다."
+        : confidence === "low" ? "EV 차이가 작거나 표본이 적으면 혼합 전략으로 봅니다." : undefined),
       targetOpportunities: 10,
       targetMaxMisses: 2,
     });
@@ -259,7 +283,9 @@ export function attachDecisionAnalyses(
     return { ...scoredReview, analysisStatus: status, analyses: [], analysisUpdatedAt: Date.now() };
   }
   const overall = Math.round(primary.overallScore);
-  const label = scoreLabel(overall);
+  const uncertain = decisionNeedsMoreSamples(primary);
+  const displayGuidance = decisionDisplayGuidance(primary);
+  const label = uncertain ? "판단 보류" : scoreLabel(overall);
   const severity = overall < 40 ? "red" : overall < 80 ? "yellow" : "green";
   const loss = round1(Math.max(primary.baselineLossBb, primary.exploitLossBb ?? 0));
   return {
@@ -267,18 +293,18 @@ export function attachDecisionAnalyses(
     severity,
     totalLossBb: loss,
     street: primary.context.street,
-    headline: primary.guidance.judgment,
-    body: primary.guidance.evidence[0] ?? primary.guidance.principle,
-    alt: `${primary.guidance.nextRule.condition} ${primary.guidance.nextRule.action}`,
+    headline: displayGuidance.judgment,
+    body: displayGuidance.evidence[0] ?? displayGuidance.principle,
+    alt: `${displayGuidance.nextRule.condition} ${displayGuidance.nextRule.action}`,
     statLabel: "코칭 점수",
-    statValue: `${overall}점 · ${label}`,
+    statValue: `${uncertain ? "잠정 " : ""}${overall}점 · ${label}`,
     villainId: primary.context.opponentId ?? scoredReview.villainId,
     leak: primary.exploitRuleId ? VILLAIN_BY_ID[primary.context.opponentId ?? ""]?.leaks[0]?.type : scoredReview.leak,
     patternTag: primary.patternId,
     gtoLine: `기본 전략 근사 ${Math.round(primary.fundamentalsScore)}점 · ${primary.baselineBest.label}`,
     exploitLine: primary.exploitScore === undefined
       ? "이 결정에는 검증된 상대별 착취 규칙이 적용되지 않았습니다."
-      : `상대 맞춤 ${Math.round(primary.exploitScore)}점 · ${primary.exploitBest?.label ?? primary.guidance.nextRule.action}`,
+      : `상대 맞춤 ${Math.round(primary.exploitScore)}점 · ${primary.exploitBest?.label ?? displayGuidance.nextRule.action}`,
     analysisStatus: status,
     analyses,
     primaryDecisionId: primary.id,

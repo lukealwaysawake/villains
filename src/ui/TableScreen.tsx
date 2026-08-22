@@ -3,6 +3,7 @@ import { applyAction, cloneState, continueHand, legalActions, positionFor, sizin
 import { analyzeHand, type ReviewCard } from "../review/analyze";
 import type { DecisionSnapshot } from "../review/ev";
 import { buildReviewAnalysis, primaryDecisionAnalysis } from "../review/coaching";
+import { decisionDisplayGuidance, decisionNeedsMoreSamples } from "../review/learning";
 import { canContinueSession, commitHand, dealNext, enqueueAnalysisJob, persistLive, type Profile, type Session } from "../state/store";
 import { decideVillain, delayFor } from "../villains/policy";
 import { maybeSpeak, onHandEnd, sessionStartLines, updateHeroRead, type SpeechEvent } from "../villains/runtime";
@@ -111,7 +112,8 @@ export function TableScreen({
     const rt = sessionRef.current.runtimes[actor.id];
     const decision = decideVillain(table, rt, profileRef.current.settings.tellDifficulty);
     setThinking(actor.id);
-    const wait = delayFor(decision, profileRef.current.settings.animSpeed);
+    const heroWatchingOnly = !!table.players[0]?.folded || !!table.players[0]?.allIn;
+    const wait = delayFor(decision, profileRef.current.settings.animSpeed, heroWatchingOnly);
     const t = setTimeout(() => {
       setThinking(null);
       setTable(applyAction(table, decision.type, decision.raiseTo, decision.delayMs));
@@ -243,6 +245,10 @@ export function TableScreen({
   const coach = table && (session.coachOn || tutorialOn) && heroTurn ? coachLine(table) : null;
   const hasDeepReview = !!badge && !!(badge.gtoLine || badge.exploitLine || badge.candidates?.length || badge.analyses?.length);
   const primaryAnalysis = badge ? primaryDecisionAnalysis(badge.analyses ?? []) : undefined;
+  const badgeHeadline = primaryAnalysis ? decisionDisplayGuidance(primaryAnalysis).judgment : badge?.headline;
+  const baselineSummary = primaryAnalysis
+    ? `기본 전략 근사 ${decisionNeedsMoreSamples(primaryAnalysis) ? "잠정 " : ""}${Math.round(primaryAnalysis.fundamentalsScore)}점 · ${primaryAnalysis.baselineBest.label}`
+    : badge?.gtoLine;
   const actingName = table?.toAct === null || table?.toAct === undefined
     ? null
     : table.players[table.toAct]?.id === "hero"
@@ -356,7 +362,7 @@ export function TableScreen({
           {badge && (
             <button className="end-rev" onClick={() => setOpenReview(true)}>
               <i className={`dot ${badge.severity}`} aria-hidden="true" />
-              <span><b>완료 요약 보기</b><small>{badge.headline}</small></span>
+              <span><b>완료 요약 보기</b><small>{badgeHeadline}</small></span>
               <span className="chevron" aria-hidden="true">›</span>
             </button>
           )}
@@ -423,11 +429,15 @@ export function TableScreen({
             )}
             {deep && hasDeepReview && (
               <div className="deep-review">
-                {badge.gtoLine && <div><b>EV 표본 기준</b><p>{badge.gtoLine}</p></div>}
+                {baselineSummary && <div><b>EV 표본 기준</b><p>{baselineSummary}</p></div>}
                 {badge.exploitLine && <div><b>상대 맞춤 전략</b><p>{badge.exploitLine}</p></div>}
                 {badge.candidates && badge.candidates.length > 0 && (
-                  <div className="candidate-list">
-                    {badge.candidates.map((candidate) => <span key={candidate.label}><b>{candidate.label}</b><em>{signedBb(candidate.ev, session.room?.bb)}</em></span>)}
+                  <div>
+                    <b>{primaryAnalysis ? "상대 모델 후보 EV · 참고용" : "후보 EV"}</b>
+                    {primaryAnalysis && <p>기본 전략 근사와 별도 비교이며, 표본 변동이 크면 순위를 확정하지 않습니다.</p>}
+                    <div className="candidate-list">
+                      {badge.candidates.map((candidate) => <span key={candidate.label}><b>{candidate.label}</b><em>{signedBb(candidate.ev, session.room?.bb)}</em></span>)}
+                    </div>
                   </div>
                 )}
                 {badge.totalLossBb > 0 && <p className="repeat-note">이번 세션에서 같은 유형이 {session.reviews.filter((review) => review.headline === badge.headline).length}번 나왔습니다.</p>}

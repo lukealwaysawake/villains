@@ -28,7 +28,7 @@ import { SessionRecap } from "./SessionRecap";
 import { CreateRoom } from "./CreateRoom";
 import { useAnalysisCoordinator } from "../review/coordinator";
 import { primaryDecisionAnalysis } from "../review/coaching";
-import { habitStatus } from "../review/learning";
+import { decisionDisplayGuidance, habitStatus } from "../review/learning";
 import { DecisionCoachCard } from "./DecisionCoachCard";
 
 function practiceLineup(primaryId: string): string[] {
@@ -250,7 +250,10 @@ function Home({
       const analysis = [...profile.learning.recentDecisions]
         .reverse()
         .find((decision) => decision.patternId === learningPattern.pattern.patternId);
-      if (analysis) return `${analysis.guidance.nextRule.condition} ${analysis.guidance.nextRule.action}`;
+      if (analysis) {
+        const guidance = decisionDisplayGuidance(analysis);
+        return `${guidance.nextRule.condition} ${guidance.nextRule.action}`;
+      }
     }
     const worst = Object.entries(profile.mastery)
       .filter(([, m]) => m.handsPlayed >= 20)

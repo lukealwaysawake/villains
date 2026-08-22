@@ -209,6 +209,63 @@ export function scoreLabel(score: number): ScoreLabel {
   return "큰 실수";
 }
 
+export interface EvSeparationInput {
+  confidence: ConfidenceLevel;
+  adjustedLossBb: number;
+  rawLossBb?: number;
+  uncertaintyBb?: number;
+  choicesDiffer: boolean;
+  hasExploitRule?: boolean;
+}
+
+/** True when sampling noise is large enough that the displayed best action must stay provisional. */
+export function evChoiceNeedsMoreSamples(input: EvSeparationInput): boolean {
+  if (input.hasExploitRule || input.confidence !== "low" || !input.choicesDiffer) return false;
+  const adjusted = finiteNonNegative(input.adjustedLossBb);
+  const raw = finiteNonNegative(input.rawLossBb ?? adjusted);
+  const uncertainty = finiteNonNegative(input.uncertaintyBb ?? 0);
+  return raw > adjusted + 0.1 && uncertainty > Math.max(0.25, raw * 0.5);
+}
+
+export function decisionNeedsMoreSamples(analysis: DecisionAnalysis): boolean {
+  return evChoiceNeedsMoreSamples({
+    confidence: analysis.confidence,
+    adjustedLossBb: analysis.baselineLossBb,
+    rawLossBb: analysis.baselineRawLossBb,
+    uncertaintyBb: analysis.baselineUncertaintyBb,
+    choicesDiffer: analysis.played.action !== analysis.baselineBest.action || analysis.played.label !== analysis.baselineBest.label,
+    hasExploitRule: !!analysis.exploitRuleId,
+  });
+}
+
+const DECISION_STREET_KO: Record<Street, string> = {
+  preflop: "프리플랍",
+  flop: "플랍",
+  turn: "턴",
+  river: "리버",
+};
+
+/** Normalize older stored cards so noisy EV separation is never presented as a certain best action. */
+export function decisionDisplayGuidance(analysis: DecisionAnalysis): CoachingGuidance {
+  if (!decisionNeedsMoreSamples(analysis)) return analysis.guidance;
+  const raw = finiteNonNegative(analysis.baselineRawLossBb ?? analysis.baselineLossBb);
+  const uncertainty = finiteNonNegative(analysis.baselineUncertaintyBb ?? 0);
+  const signed = (value: number) => `${value >= 0 ? "+" : ""}${value.toFixed(1)}bb`;
+  return {
+    ...analysis.guidance,
+    judgment: `${DECISION_STREET_KO[analysis.context.street]} 선택: ${analysis.played.label} · 아직 우열을 확정하기 어렵습니다.`,
+    evidence: [
+      `${analysis.samples}개 동일 표본에서 ${analysis.played.label} ${signed(analysis.played.evBb)}, ${analysis.baselineBest.label} ${signed(analysis.baselineBest.evBb)}로 원시 차이는 ${raw.toFixed(1)}bb였습니다.`,
+      `다만 표본 변동 ${uncertainty.toFixed(1)}bb가 커 현재 선택을 손실로 확정하지 않았습니다.`,
+    ],
+    nextRule: {
+      ...analysis.guidance.nextRule,
+      action: `${analysis.baselineBest.label} 선택을 우선 후보로 두고 같은 상황의 표본을 더 모으세요.`,
+      exception: "표본 변동이 큰 구간이라 현재 선택을 실수로 확정하지 않습니다.",
+    },
+  };
+}
+
 export function confidenceFor(input: ConfidenceInput): ConfidenceLevel {
   const samples = finiteInteger(input.samples, 0);
   const gapBb = finiteNonNegative(input.gapBb);

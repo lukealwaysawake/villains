@@ -344,6 +344,7 @@ export function decideVillain(
   return act("check");
 }
 
-export function delayFor(decision: PolicyDecision, speed = 1): number {
+export function delayFor(decision: PolicyDecision, speed = 1, fastForward = false): number {
+  if (fastForward) return 80;
   return Math.max(180, Math.round(decision.delayMs / speed));
 }

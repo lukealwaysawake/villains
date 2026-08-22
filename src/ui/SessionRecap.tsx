@@ -2,7 +2,7 @@ import { useState } from "react";
 import { sessionPatterns, type Profile, type Session } from "../state/store";
 import { displayReviewCopy } from "../review/analyze";
 import { primaryDecisionAnalysis } from "../review/coaching";
-import { scoreLabel, summarizeSession as summarizeCoachingSession } from "../review/learning";
+import { decisionDisplayGuidance, decisionNeedsMoreSamples, scoreLabel, summarizeSession as summarizeCoachingSession } from "../review/learning";
 import { VILLAIN_BY_ID } from "../villains/catalog";
 import { Avatar, signedBb, type Screen } from "./bits";
 import { DecisionCoachCard } from "./DecisionCoachCard";
@@ -26,8 +26,9 @@ export function SessionRecap({
   const reviews = [...(session.reviews ?? [])].reverse();
   const analyses = reviews.flatMap((review) => review.analyses ?? []);
   const coaching = summarizeCoachingSession(analyses);
+  const uncertainCount = analyses.filter(decisionNeedsMoreSamples).length;
   const pendingCount = reviews.filter((review) => review.analysisStatus === "preliminary").length;
-  const bestDecision = [...analyses].filter((analysis) => analysis.overallScore >= 80).sort((left, right) => right.overallScore - left.overallScore)[0];
+  const bestDecision = [...analyses].filter((analysis) => analysis.overallScore >= 80 && !decisionNeedsMoreSamples(analysis)).sort((left, right) => right.overallScore - left.overallScore)[0];
   const patternMap = new Map<string, { count: number; misses: number; loss: number; analysis: typeof analyses[number] }>();
   for (const analysis of analyses) {
     const item = patternMap.get(analysis.patternId) ?? { count: 0, misses: 0, loss: 0, analysis };
@@ -53,12 +54,13 @@ export function SessionRecap({
         {session.handsPlayed}핸드 · {session.room ? `$${session.room.sb}/$${session.room.bb}` : "캐시"} · {session.villainIds.map((id) => VILLAIN_BY_ID[id]?.name).join(" · ")}
       </p>
       {coaching.hasData && (
-        <div className="session-coaching card" aria-label={`세션 코칭 점수 ${Math.round(coaching.overallScore)}점, ${scoreLabel(coaching.overallScore)}`}>
+        <div className="session-coaching card" aria-label={`세션 코칭 점수 ${uncertainCount > 0 ? "잠정 " : ""}${Math.round(coaching.overallScore)}점, ${scoreLabel(coaching.overallScore)}`}>
           <div className="session-score"><strong>{Math.round(coaching.overallScore)}</strong><span>점</span></div>
           <div>
-            <span className="eyebrow">COACHING SCORE</span>
+            <span className="eyebrow">COACHING SCORE{uncertainCount > 0 ? " · 잠정" : ""}</span>
             <h2>{scoreLabel(coaching.overallScore)} · 결정 {coaching.decisionCount}개</h2>
             <p>기본기 {Math.round(coaching.fundamentalsScore)}점{coaching.exploitScore === undefined ? " · 착취 기회 없음" : ` · 상대 맞춤 ${Math.round(coaching.exploitScore)}점`}</p>
+            {uncertainCount > 0 && <p>우열 판단 보류 {uncertainCount}개 · 표본이 쌓이면 갱신</p>}
           </div>
         </div>
       )}
@@ -66,8 +68,8 @@ export function SessionRecap({
       {bestDecision && (
         <div className="session-win insight">
           <span className="eyebrow">잘한 결정</span>
-          <b>{bestDecision.guidance.judgment}</b>
-          <p>{bestDecision.guidance.evidence[0]}</p>
+          <b>{decisionDisplayGuidance(bestDecision).judgment}</b>
+          <p>{decisionDisplayGuidance(bestDecision).evidence[0]}</p>
         </div>
       )}
       <div className="grid3" style={{ marginTop: 10 }}>
@@ -86,8 +88,8 @@ export function SessionRecap({
         {coachingPatterns.length === 0 && patterns.length === 0 && <p className="kicker">반복해서 교정할 결정은 아직 없습니다.</p>}
         {coachingPatterns.map((pattern) => (
           <div key={pattern.analysis.patternId} className="priority-row">
-            <div className="row"><b>{pattern.analysis.guidance.judgment}</b><span>{pattern.misses}/{pattern.count} 놓침</span></div>
-            <p>{pattern.analysis.guidance.nextRule.condition} {pattern.analysis.guidance.nextRule.action}</p>
+            <div className="row"><b>{decisionDisplayGuidance(pattern.analysis).judgment}</b><span>{pattern.misses}/{pattern.count} 놓침</span></div>
+            <p>{decisionDisplayGuidance(pattern.analysis).nextRule.condition} {decisionDisplayGuidance(pattern.analysis).nextRule.action}</p>
             <small>누적 추정 손실 {pattern.loss.toFixed(1)}bb · 다음 10번 중 2회 이하 목표</small>
           </div>
         ))}
