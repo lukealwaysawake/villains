@@ -2,7 +2,7 @@ import { evaluate5, evaluateBest } from "./handRank";
 import { parseCard } from "./cards";
 import { applyAction, createFreshPlayers, legalActions, positionFor, startHand } from "./game";
 import { Rng } from "./rng";
-import { canContinueSession, commitHand, createSession, dealNext, defaultProfile, defaultRoom, loadProfile, recordHabit } from "../state/store";
+import { canContinueSession, commitHand, createSession, dealNext, defaultProfile, defaultRoom, enqueueAnalysisJob, loadProfile, recordDecisionAnalyses, recordHabit } from "../state/store";
 import { displayReviewCopy, mergeDecisionScores, type ReviewCard } from "../review/analyze";
 import { dollarRateStatus, formatSignedDollars, sumKnownDollars } from "../ui/money";
 import { behaviorProbe } from "./sim";
@@ -116,6 +116,12 @@ const coachingSummary = summarizeCoachingSession([
 ]);
 assert(coachingSummary.fundamentalsScore === 60, "session score should weight a 16bb pot four times a 1bb pot");
 assert(coachingSummary.exploitScore === 100 && coachingSummary.overallScore === 72, "session total should apply 70/30 only on exploit opportunities");
+const aggregateProfile = defaultProfile();
+const aggregateDecision = coachingDecision("77", 4, 60, 50);
+recordDecisionAnalyses(aggregateProfile, [aggregateDecision]);
+recordDecisionAnalyses(aggregateProfile, [aggregateDecision]);
+assert(aggregateProfile.learning.patterns[aggregateDecision.patternId].opportunities === 1, "analysis pattern aggregation must be idempotent by decision id");
+assert(aggregateProfile.learning.skills.aggression?.opportunities === 1, "skill aggregation must not double count a finalized decision");
 
 function ruleFixture(
   villainId: string,
@@ -291,12 +297,26 @@ const pricedReview: ReviewCard = {
 };
 const pricedHabit = recordHabit([], pricedReview)[0] as ReturnType<typeof recordHabit>[number] & { totalLossDollars?: number };
 assert(pricedHabit.totalLossDollars === 50, "habit ledger must persist exact dollar loss at the originating stake");
+const pendingProfile = defaultProfile();
+enqueueAnalysisJob(pendingProfile, {
+  sessionId: "pending-session",
+  handNumber: 1,
+  review: pricedReview,
+  decisions: [ruleFixtures.stationpark.decision],
+  tellDifficulty: 0.78,
+});
+const sanitizedPending = pendingProfile.learning.pendingJobs[0].decisions[0].snapshot;
+assert(pendingProfile.learning.pendingJobs.length === 1, "completed hands should persist one background analysis job");
+assert(!!sanitizedPending.players.find((player) => player.id === "hero")?.hole, "background analysis must retain the hero cards it needs");
+assert(sanitizedPending.players.filter((player) => player.id !== "hero").every((player) => player.hole === null), "persisted jobs must strip hidden opponent cards");
 
 let storedProfile: string | null = null;
 Object.assign(globalThis, { localStorage: { getItem: () => storedProfile, setItem: (_key: string, value: string) => { storedProfile = value; } } });
 storedProfile = JSON.stringify({ mastery: { uncleho: { handsPlayed: 20, sessionsPlayed: 2, bb: 40, exploitHits: 0, exploitChances: 0, leaksFound: [], hintsUsed: false } } });
 const migratedProfile = loadProfile();
 assert(migratedProfile.mastery.uncleho.dollarHands === 0 && migratedProfile.mastery.uncleho.dollarDelta === 0, "legacy BB mastery must not invent dollar history during migration");
+assert(migratedProfile.schemaVersion === 2 && migratedProfile.learning.schemaVersion === 2, "legacy profiles should migrate to the coaching schema without inventing scores");
+assert(migratedProfile.learning.recentDecisions.length === 0 && Object.keys(migratedProfile.learning.patterns).length === 0, "legacy records must not become fake confirmed coaching patterns");
 const partialRate = dollarRateStatus(25, 1, 21);
 assert(!partialRate.complete && partialRate.label === "확인된 $/100 · 1핸드", "partially tracked mastery must disclose its priced-hand denominator");
 storedProfile = null;

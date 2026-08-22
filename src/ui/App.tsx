@@ -26,6 +26,7 @@ import { TableScreen } from "./TableScreen";
 import { Analyze } from "./Analyze";
 import { SessionRecap } from "./SessionRecap";
 import { CreateRoom } from "./CreateRoom";
+import { useAnalysisCoordinator } from "../review/coordinator";
 
 function practiceLineup(primaryId: string): string[] {
   const fillers = ["uncleho", "nitlee", "stationpark", "foldjeong", "weekend", "bulldozer"];
@@ -44,6 +45,13 @@ export function App() {
     setProfileState(next);
     saveProfile(next);
   }
+
+  useAnalysisCoordinator({
+    profile,
+    setProfile,
+    session,
+    setSession: (next) => setSession(next),
+  });
 
   function go(s: Screen) {
     setScreen(s);

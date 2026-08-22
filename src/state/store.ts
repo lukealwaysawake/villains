@@ -5,6 +5,15 @@ import { PRESETS, STARTER_UNLOCKS, VILLAIN_BY_ID, VILLAINS } from "../villains/c
 import { createRuntime, type VillainRuntime } from "../villains/types";
 import { detectPatterns, type ReviewCard } from "../review/analyze";
 import type { DecisionSnapshot } from "../review/ev";
+import {
+  createPatternAggregate,
+  summarizeSession as summarizeCoachingDecisions,
+  updatePatternAggregate,
+  type DecisionAnalysis,
+  type PatternAggregate,
+  type SessionCoachingSummary,
+  type SkillKey,
+} from "../review/learning";
 
 export type Screen = "home" | "lobby" | "table" | "report" | "dex" | "detail" | "reviews" | "settings" | "onboarding" | "fairness" | "history" | "create-room" | "analyze";
 export interface RoomConfig {
@@ -102,6 +111,7 @@ export interface Session {
 }
 
 export interface Profile {
+  schemaVersion: 2;
   onboardingDone: boolean;
   unlocked: string[];
   mastery: Record<string, Mastery>;
@@ -116,6 +126,37 @@ export interface Profile {
   handLog: HandLog[];
   habits: HabitRecord[];
   lastRoom?: { room: RoomConfig; villainIds: string[]; at: number };
+  learning: LearningState;
+}
+
+export interface AnalysisJob {
+  id: string;
+  sessionId: string;
+  handNumber: number;
+  review: ReviewCard;
+  decisions: DecisionSnapshot[];
+  tellDifficulty: number;
+  createdAt: number;
+}
+
+export interface SkillAggregate {
+  skill: SkillKey;
+  opportunities: number;
+  misses: number;
+  totalLossBb: number;
+  weightedScoreSum: number;
+  weightSum: number;
+  seenDecisionIds: string[];
+  recentScores: number[];
+}
+
+export interface LearningState {
+  schemaVersion: 2;
+  recentDecisions: DecisionAnalysis[];
+  patterns: Record<string, PatternAggregate>;
+  skills: Partial<Record<SkillKey, SkillAggregate>>;
+  pendingJobs: AnalysisJob[];
+  legacyHabitCount: number;
 }
 
 export interface SessionSummary {
@@ -129,6 +170,7 @@ export interface SessionSummary {
   bigBlindDollars?: number;
   vpip: number;
   pfr: number;
+  coaching?: SessionCoachingSummary;
 }
 
 export interface HandLog {
@@ -171,6 +213,7 @@ export function emptyMastery(): Mastery {
 
 export function defaultProfile(): Profile {
   return {
+    schemaVersion: 2,
     onboardingDone: false,
     unlocked: [...STARTER_UNLOCKS],
     mastery: Object.fromEntries(VILLAINS.map((v) => [v.id, emptyMastery()])),
@@ -183,6 +226,60 @@ export function defaultProfile(): Profile {
     sessionHistory: [],
     handLog: [],
     habits: [],
+    learning: defaultLearningState(),
+  };
+}
+
+export function defaultLearningState(legacyHabitCount = 0): LearningState {
+  return {
+    schemaVersion: 2,
+    recentDecisions: [],
+    patterns: {},
+    skills: {},
+    pendingJobs: [],
+    legacyHabitCount,
+  };
+}
+
+function migrateLearning(value: Partial<LearningState> | null | undefined, legacyHabitCount: number): LearningState {
+  const base = defaultLearningState(legacyHabitCount);
+  if (!value || typeof value !== "object") return base;
+  const recentDecisions = Array.isArray(value.recentDecisions)
+    ? value.recentDecisions.filter((decision) => decision && typeof decision.id === "string").slice(-300)
+    : [];
+  const patterns = value.patterns && typeof value.patterns === "object" ? value.patterns : {};
+  const skills = value.skills && typeof value.skills === "object" ? value.skills : {};
+  const pendingJobs = Array.isArray(value.pendingJobs)
+    ? value.pendingJobs.filter((job) => job && typeof job.id === "string" && Array.isArray(job.decisions)).slice(0, 4)
+    : [];
+  return {
+    schemaVersion: 2,
+    recentDecisions,
+    patterns,
+    skills,
+    pendingJobs,
+    legacyHabitCount: Number.isFinite(value.legacyHabitCount) ? Math.max(0, value.legacyHabitCount!) : legacyHabitCount,
+  };
+}
+
+function migrateProfile(parsed: Partial<Profile>): Profile {
+  const base = defaultProfile();
+  const habits = Array.isArray(parsed.habits) ? parsed.habits : [];
+  return {
+    ...base,
+    ...parsed,
+    schemaVersion: 2,
+    settings: { ...base.settings, ...(parsed.settings ?? {}) },
+    mastery: Object.fromEntries(VILLAINS.map((villain) => [
+      villain.id,
+      { ...emptyMastery(), ...(parsed.mastery?.[villain.id] ?? {}) },
+    ])),
+    daily: parsed.daily ?? base.daily,
+    savedCombos: parsed.savedCombos ?? [],
+    sessionHistory: parsed.sessionHistory ?? [],
+    handLog: parsed.handLog ?? [],
+    habits,
+    learning: migrateLearning(parsed.learning, habits.length),
   };
 }
 
@@ -190,22 +287,7 @@ export function loadProfile(): Profile {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return defaultProfile();
-    const parsed = JSON.parse(raw) as Partial<Profile>;
-    const base = defaultProfile();
-    return {
-      ...base,
-      ...parsed,
-      settings: { ...base.settings, ...(parsed.settings ?? {}) },
-      mastery: Object.fromEntries(VILLAINS.map((villain) => [
-        villain.id,
-        { ...emptyMastery(), ...(parsed.mastery?.[villain.id] ?? {}) },
-      ])),
-      daily: parsed.daily ?? base.daily,
-      savedCombos: parsed.savedCombos ?? [],
-      sessionHistory: parsed.sessionHistory ?? [],
-      handLog: parsed.handLog ?? [],
-      habits: parsed.habits ?? [],
-    };
+    return migrateProfile(JSON.parse(raw) as Partial<Profile>);
   } catch {
     return defaultProfile();
   }
@@ -367,6 +449,7 @@ export function dealNext(session: Session): TableState {
 }
 
 export function commitHand(profile: Profile, session: Session, state: TableState, review: ReviewCard): void {
+  if (session.reviews.some((item) => item.id === review.id)) return;
   session.pendingDecisions = [];
   for (const p of state.players) session.stacks[p.id] = p.stack;
   const delta = chipsToBb(state.result?.heroDelta ?? 0, state.bb);
@@ -388,14 +471,14 @@ export function commitHand(profile: Profile, session: Session, state: TableState
   session.heroStats.aggCall += heroActs.filter((a) => a.type === "call").length;
   if (state.board.length >= 3 && !state.players[0].folded) session.heroStats.sawFlop += 1;
   if (state.result?.shown[0]) session.heroStats.wtsd += 1;
-  if (review.severity !== "green" && review.leak) session.missedExploits += 1;
+  if (!review.analysisStatus && review.severity !== "green" && review.leak) session.missedExploits += 1;
   if (profile.daily.date !== todayKey()) profile.daily = { date: todayKey(), hands: 0 };
   profile.daily.hands += 1;
   if (heroActs[0]?.type === "fold" && heroActs.length === 1) session.heroFoldStreak += 1;
   else session.heroFoldStreak = 0;
 
   session.reviews.push(review);
-  if (!review.viewed && review.severity !== "green") {
+  if (review.analysisStatus !== "preliminary" && !review.viewed && review.severity !== "green") {
     profile.reviewQueue.unshift(review);
     profile.reviewQueue = profile.reviewQueue.slice(0, 80);
   }
@@ -414,7 +497,7 @@ export function commitHand(profile: Profile, session: Session, state: TableState
     },
     ...(profile.handLog ?? []),
   ].slice(0, 200);
-  if (review.severity !== "green") {
+  if (!review.analysisStatus && review.severity !== "green") {
     profile.habits = recordHabit(profile.habits ?? [], review);
   }
 
@@ -498,6 +581,7 @@ export function summarizeSession(session: Session): SessionSummary {
     bigBlindDollars: session.room?.bb,
     vpip: hs.hands ? Math.round((hs.vpip / hs.hands) * 100) : 0,
     pfr: hs.hands ? Math.round((hs.pfr / hs.hands) * 100) : 0,
+    coaching: summarizeCoachingDecisions(session.reviews.flatMap((review) => review.analyses ?? [])),
   };
 }
 
@@ -529,22 +613,7 @@ export function exportProfile(profile: Profile): string {
 }
 
 export function importProfile(raw: string): Profile {
-  const parsed = JSON.parse(raw) as Partial<Profile>;
-  const base = defaultProfile();
-  const next: Profile = {
-    ...base,
-    ...parsed,
-    settings: { ...base.settings, ...(parsed.settings ?? {}) },
-    mastery: Object.fromEntries(VILLAINS.map((villain) => [
-      villain.id,
-      { ...emptyMastery(), ...(parsed.mastery?.[villain.id] ?? {}) },
-    ])),
-    daily: parsed.daily ?? base.daily,
-    savedCombos: parsed.savedCombos ?? [],
-    sessionHistory: parsed.sessionHistory ?? [],
-    handLog: parsed.handLog ?? [],
-      habits: parsed.habits ?? [],
-  };
+  const next = migrateProfile(JSON.parse(raw) as Partial<Profile>);
   saveProfile(next);
   return next;
 }
@@ -560,7 +629,7 @@ export function canShowHint(_profile: Profile, _id: string): boolean {
 }
 
 export function recordHabit(habits: HabitRecord[], review: ReviewCard): HabitRecord[] {
-  const tag = review.headline || "기타 실수";
+  const tag = review.patternTag ?? review.headline ?? "기타 실수";
   const now = Date.now();
   const list = [...habits];
   const idx = list.findIndex((h) => h.tag === tag);
@@ -607,6 +676,141 @@ export function recordHabit(habits: HabitRecord[], review: ReviewCard): HabitRec
 
 export function topHabits(profile: Profile, minCount = 2): HabitRecord[] {
   return (profile.habits ?? []).filter((h) => h.count >= minCount).slice(0, 8);
+}
+
+function sanitizedDecision(decision: DecisionSnapshot): DecisionSnapshot {
+  const next = structuredClone(decision);
+  for (const player of next.snapshot.players) {
+    if (player.id !== "hero") player.hole = null;
+  }
+  return next;
+}
+
+export function enqueueAnalysisJob(
+  profile: Profile,
+  input: {
+    sessionId: string;
+    handNumber: number;
+    review: ReviewCard;
+    decisions: readonly DecisionSnapshot[];
+    tellDifficulty: number;
+  },
+): void {
+  if (input.decisions.length === 0) return;
+  const job: AnalysisJob = {
+    id: input.review.id,
+    sessionId: input.sessionId,
+    handNumber: input.handNumber,
+    review: structuredClone(input.review),
+    decisions: input.decisions.map(sanitizedDecision),
+    tellDifficulty: input.tellDifficulty,
+    createdAt: Date.now(),
+  };
+  profile.learning.pendingJobs = [
+    ...profile.learning.pendingJobs.filter((existing) => existing.id !== job.id),
+    job,
+  ].slice(-4);
+}
+
+function createSkillAggregate(skill: SkillKey): SkillAggregate {
+  return {
+    skill,
+    opportunities: 0,
+    misses: 0,
+    totalLossBb: 0,
+    weightedScoreSum: 0,
+    weightSum: 0,
+    seenDecisionIds: [],
+    recentScores: [],
+  };
+}
+
+function analysisIsRecordable(analysis: DecisionAnalysis): boolean {
+  return analysis.analysisBasis !== "rules" || analysis.exploitScore !== undefined;
+}
+
+export function recordDecisionAnalyses(profile: Profile, analyses: readonly DecisionAnalysis[]): void {
+  const byId = new Map(profile.learning.recentDecisions.map((analysis) => [analysis.id, analysis]));
+  for (const analysis of analyses) byId.set(analysis.id, analysis);
+  profile.learning.recentDecisions = [...byId.values()]
+    .sort((left, right) => left.analysisUpdatedAt - right.analysisUpdatedAt)
+    .slice(-300);
+
+  for (const analysis of analyses) {
+    if (!analysisIsRecordable(analysis)) continue;
+    const baselineMiss = analysis.baselineLossBb >= 0.8;
+    const exploitMiss = analysis.exploitScore !== undefined && analysis.exploitScore < 80;
+    const missed = baselineMiss || exploitMiss;
+    const lossBb = missed ? Math.max(analysis.baselineLossBb, analysis.exploitLossBb ?? 0) : 0;
+    const existingPattern = profile.learning.patterns[analysis.patternId]
+      ?? createPatternAggregate(analysis.patternId, analysis.skill);
+    profile.learning.patterns[analysis.patternId] = updatePatternAggregate(existingPattern, {
+      eventId: analysis.id,
+      missed,
+      lossBb,
+      at: analysis.analysisUpdatedAt,
+    });
+
+    const aggregate = profile.learning.skills[analysis.skill] ?? createSkillAggregate(analysis.skill);
+    if (aggregate.seenDecisionIds.includes(analysis.id)) continue;
+    const weight = Math.min(4, Math.max(1, Math.sqrt(Math.max(0, analysis.context.potBb))));
+    aggregate.opportunities += 1;
+    aggregate.misses += missed ? 1 : 0;
+    aggregate.totalLossBb = Math.round((aggregate.totalLossBb + lossBb) * 10) / 10;
+    aggregate.weightedScoreSum += analysis.overallScore * weight;
+    aggregate.weightSum += weight;
+    aggregate.seenDecisionIds.push(analysis.id);
+    aggregate.recentScores = [...aggregate.recentScores, analysis.overallScore].slice(-20);
+    profile.learning.skills[analysis.skill] = aggregate;
+  }
+}
+
+function replaceReview(list: ReviewCard[], review: ReviewCard): ReviewCard[] {
+  const index = list.findIndex((item) => item.id === review.id);
+  if (index < 0) return [...list, review];
+  const next = [...list];
+  next[index] = review;
+  return next;
+}
+
+export function finalizeHandAnalysis(profile: Profile, session: Session | null, review: ReviewCard): void {
+  profile.learning.pendingJobs = profile.learning.pendingJobs.filter((job) => job.id !== review.id);
+  recordDecisionAnalyses(profile, review.analyses ?? []);
+
+  if (session) {
+    session.reviews = replaceReview(session.reviews, review);
+    session.missedExploits = session.reviews
+      .flatMap((item) => item.analyses ?? [])
+      .filter((analysis) => analysis.exploitScore !== undefined && analysis.exploitScore < 80)
+      .length;
+    if (profile.lastSession?.id === session.id) profile.lastSession = session;
+  } else {
+    const lastSession = profile.lastSession;
+    if (lastSession && lastSession.id === review.analyses?.[0]?.context.sessionId) {
+      lastSession.reviews = replaceReview(lastSession.reviews, review);
+    }
+  }
+
+  profile.reviewQueue = profile.reviewQueue.filter((item) => item.id !== review.id);
+  if (!review.viewed && review.severity !== "green") {
+    profile.reviewQueue = [review, ...profile.reviewQueue].slice(0, 80);
+  }
+  profile.handLog = profile.handLog.map((hand) => (
+    hand.sessionId === review.analyses?.[0]?.context.sessionId && hand.handNumber === review.handNumber
+      ? { ...hand, severity: review.severity, headline: review.headline, leak: review.leak, villainId: review.villainId }
+      : hand
+  ));
+  profile.sessionHistory = profile.sessionHistory.map((summary) => {
+    if (summary.id !== review.analyses?.[0]?.context.sessionId) return summary;
+    const reviews = session?.id === summary.id ? session.reviews : profile.lastSession?.id === summary.id ? profile.lastSession.reviews : [];
+    return { ...summary, coaching: summarizeCoachingDecisions(reviews.flatMap((item) => item.analyses ?? [])) };
+  });
+  saveProfile(profile);
+}
+
+export function skillScore(aggregate: SkillAggregate | null | undefined): number | undefined {
+  if (!aggregate || aggregate.opportunities < 3 || aggregate.weightSum <= 0) return undefined;
+  return Math.round(aggregate.weightedScoreSum / aggregate.weightSum);
 }
 
 export function rememberRoom(profile: Profile, room: RoomConfig, villainIds: string[]): Profile {

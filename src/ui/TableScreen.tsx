@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { applyAction, cloneState, continueHand, legalActions, positionFor, sizingPresets, type TableState } from "../engine/game";
-import { analyzeHand, mergeDecisionScores, type ReviewCard } from "../review/analyze";
+import { analyzeHand, type ReviewCard } from "../review/analyze";
 import type { DecisionSnapshot } from "../review/ev";
-import { scoreDecisionsAsync } from "../review/evClient";
-import { canContinueSession, commitHand, dealNext, persistLive, type Profile, type Session } from "../state/store";
+import { buildReviewAnalysis } from "../review/coaching";
+import { canContinueSession, commitHand, dealNext, enqueueAnalysisJob, persistLive, type Profile, type Session } from "../state/store";
 import { decideVillain, delayFor } from "../villains/policy";
 import { maybeSpeak, onHandEnd, sessionStartLines, updateHeroRead, type SpeechEvent } from "../villains/runtime";
 import { VILLAIN_BY_ID } from "../villains/catalog";
@@ -60,7 +60,7 @@ export function TableScreen({
         if (savedReview) {
           committed.current = next.liveTable.handNumber;
           setBadge(savedReview);
-          setShowPositions(true);
+          setShowPositions(false);
           setOpenReview(false);
           const cont = canContinueSession(next);
           setSessionOver(cont.ok ? null : cont.reason);
@@ -143,25 +143,24 @@ export function TableScreen({
     const nextProfile = structuredClone(profileRef.current);
     const decisions = nextSession.pendingDecisions ?? [];
 
-    async function finishHand() {
+    try {
       let review = analyzeHand(completedTable);
-      try {
-        const sampleCount = Math.max(16, Math.min(32, Math.floor(128 / Math.max(1, decisions.length))));
-        let scores = await scoreDecisionsAsync({
+      if (decisions.length > 0) {
+        review = buildReviewAnalysis({
+          review,
+          status: "preliminary",
+          sessionId: nextSession.id,
+          handNumber: completedTable.handNumber,
           decisions,
-          samples: sampleCount,
-          tell: nextProfile.settings.tellDifficulty,
         });
-        if (!scores && decisions.length > 0) {
-          await new Promise<void>((resolve) => setTimeout(resolve, 0));
-          const { scoreDecisions } = await import("../review/ev");
-          scores = scoreDecisions(decisions, 12, nextProfile.settings.tellDifficulty);
-        }
-        if (scores) review = mergeDecisionScores(review, scores);
-      } catch {
-        // The deterministic rule review remains a safe fallback if the worker fails.
+        enqueueAnalysisJob(nextProfile, {
+          sessionId: nextSession.id,
+          handNumber: completedTable.handNumber,
+          review,
+          decisions,
+          tellDifficulty: nextProfile.settings.tellDifficulty,
+        });
       }
-
       nextSession.pendingDecisions = [];
       for (const player of completedTable.players) {
         if (player.id !== "hero") updateHeroRead(nextSession.runtimes[player.id], completedTable);
@@ -179,16 +178,24 @@ export function TableScreen({
       if (talks[0]) setSpeech(talks[0]);
       const cont = canContinueSession(nextSession);
       setSessionOver(cont.ok ? null : cont.reason);
-      setShowPositions(true);
-      setOpenReview(false);
+      setShowPositions(false);
+      const pause = nextProfile.settings.reviewPause;
+      const shouldOpen = pause === "all"
+        || (pause === "yellow" && review.severity !== "green")
+        || (pause === "red" && review.severity === "red");
+      setOpenReview(shouldOpen);
       setFinalizing(false);
-    }
-
-    void finishHand().catch(() => {
+    } catch {
       setFinalizing(false);
       setFinalizeError("핸드 기록을 저장하지 못했습니다. 새로고침하면 다시 시도합니다.");
-    });
+    }
   }, [table, setProfile, setSession]);
+
+  useEffect(() => {
+    if (!badge) return;
+    const latest = session.reviews.find((review) => review.id === badge.id);
+    if (latest && (latest.analysisUpdatedAt ?? 0) > (badge.analysisUpdatedAt ?? 0)) setBadge(latest);
+  }, [badge, session.reviews]);
 
   function nextHand() {
     const cont = canContinueSession(sessionRef.current);
@@ -233,7 +240,7 @@ export function TableScreen({
   const heroTurn = !!table && table.toAct === 0 && table.street !== "complete" && !table.players[0]?.folded && !table.players[0]?.allIn;
   const tutorialOn = session.tutorial && session.handsPlayed < 30;
   const coach = table && (session.coachOn || tutorialOn) && heroTurn ? coachLine(table) : null;
-  const hasDeepReview = !!badge && !!(badge.gtoLine || badge.exploitLine || badge.candidates?.length);
+  const hasDeepReview = !!badge && !!(badge.gtoLine || badge.exploitLine || badge.candidates?.length || badge.analyses?.length);
   const actingName = table?.toAct === null || table?.toAct === undefined
     ? null
     : table.players[table.toAct]?.id === "hero"
@@ -252,7 +259,7 @@ export function TableScreen({
   return (
     <section className="screen play">
       <div className="playhud">
-        <button className="hud-exit" disabled={finalizing} onClick={() => setExitOpen(true)} aria-label="세션 종료 메뉴">종료</button>
+        <button className="hud-exit" onClick={() => setExitOpen(true)} aria-label="세션 종료 메뉴">종료</button>
         <span className="hud-blinds" aria-label={`스몰 블라인드 $${session.room?.sb ?? 0.5}, 빅 블라인드 $${session.room?.bb ?? 1}`}>
           <span><i>SB</i><b>${session.room?.sb ?? 0.5}</b></span>
           <span><i>BB</i><b>${session.room?.bb ?? 1}</b></span>
@@ -345,11 +352,17 @@ export function TableScreen({
           {finalizeError && <p className="session-over" role="alert">{finalizeError}</p>}
           {sessionOver && <p className="session-over" role="status">{sessionOver}</p>}
           {badge && (
-            <button className="end-rev" onClick={() => setShowPositions(true)}>
+            <button className="end-rev" onClick={() => setOpenReview(true)}>
               <i className={`dot ${badge.severity}`} aria-hidden="true" />
               <span><b>완료 요약 보기</b><small>{badge.headline}</small></span>
               <span className="chevron" aria-hidden="true">›</span>
             </button>
+          )}
+          {badge && (
+            <div className="end-actions">
+              <button className="btn glass" onClick={() => setShowPositions(true)}>포지션</button>
+              <button className="btn primary" onClick={nextHand}>{sessionOver ? "세션 끝내기" : "다음 핸드"}</button>
+            </div>
           )}
         </div>
       )}
