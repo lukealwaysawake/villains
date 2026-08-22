@@ -4,6 +4,9 @@ import { describeAction, type TableState } from "../engine/game";
 import { chipsToBb, type ActionType, type ReviewSeverity, type Street } from "../engine/types";
 import { VILLAIN_BY_ID } from "../villains/catalog";
 import type { DecisionEv } from "./ev";
+import type { DecisionAnalysis } from "./learning";
+
+export type AnalysisStatus = "preliminary" | "final" | "limited";
 
 export interface StreetReview {
   street: Street;
@@ -36,6 +39,10 @@ export interface ReviewCard {
   candidates?: { label: string; ev: number }[];
   decision?: ReviewDecision;
   patternTag?: string;
+  analysisStatus?: AnalysisStatus;
+  analyses?: DecisionAnalysis[];
+  primaryDecisionId?: string;
+  analysisUpdatedAt?: number;
 }
 
 export interface ReviewDecision {
@@ -227,7 +234,7 @@ export function analyzeHand(state: TableState): ReviewCard {
     viewed: false,
     bigBlindDollars: state.bb / 100,
     streets: analyzeStreets(state),
-    gtoLine: "GTO 기준: 밸런스 혼합. 블러프 빈도는 상대가 폴드하는 만큼만.",
+    gtoLine: "기본 전략 근사: 밸런스 혼합. 블러프 빈도는 상대가 폴드하는 만큼만.",
     exploitLine: body,
   };
 }

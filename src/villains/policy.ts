@@ -14,6 +14,32 @@ export interface PolicyDecision {
   mixKey: string;
 }
 
+export type PolicyMode = "exploit" | "baseline";
+
+const BASELINE_STATS: PokerStats = {
+  vpip: 25,
+  pfr: 20,
+  threeBet: 8,
+  foldToThreeBet: 58,
+  fourBet: 5,
+  foldToFourBet: 55,
+  cbetFlop: 62,
+  cbetTurn: 50,
+  cbetRiver: 42,
+  foldToCbetFlop: 48,
+  foldToCbetTurn: 50,
+  foldToCbetRiver: 52,
+  turnBarrel: 50,
+  riverBluffFreq: 24,
+  checkRaiseFlop: 7,
+  donkBetFreq: 5,
+  showdownCalldownThreshold: 0.5,
+  wtsd: 27,
+  aggressionFactor: 2.7,
+  positionAwareness: 0.9,
+  betSizingProfile: "standard",
+};
+
 const POS_OPEN_MULT: Record<Position, number> = {
   UTG: 0.62,
   MP: 0.78,
@@ -101,13 +127,18 @@ export function decideVillain(
   runtime: VillainRuntime,
   tellDifficulty = 0.78,
   fast = false,
+  mode: PolicyMode = "exploit",
 ): PolicyDecision {
   const seat = state.toAct!;
   const player = state.players[seat];
   const def = VILLAIN_BY_ID[runtime.villainId];
   const pos = positionFor(state.button, seat, state.players.length);
-  const emo = emotionScale(runtime);
-  let stats = applyVendettaTilt(def.id, runtime, mergedStats(def.id, pos));
+  const baseline = mode === "baseline";
+  const policyRuntime = baseline
+    ? { ...runtime, emotion: "NORMAL" as const, emotionRemainingHands: 0, cbetBoost: 0, fourBetBoost: 0, overbetBluffBoostUntil: 0 }
+    : runtime;
+  const emo = baseline ? { vpip: 1, agg: 1, fold: 1, bluff: 1 } : emotionScale(runtime);
+  let stats = baseline ? BASELINE_STATS : applyVendettaTilt(def.id, runtime, mergedStats(def.id, pos));
   stats = {
     ...stats,
     vpip: Math.min(90, stats.vpip * emo.vpip),
@@ -134,21 +165,21 @@ export function decideVillain(
   const raises = facingBets(state);
   const mixKey = `${def.id}:${street}:${pos}:${Math.round(pf)}:${toCall > 0}`;
 
-  const jeongBig = def.id === "foldjeong" && street === "river" && toCall >= pot * 0.75;
-  const jeongSmall = def.id === "foldjeong" && street === "river" && toCall > 0 && toCall <= pot * 0.4;
-  const weekendScare = def.id === "weekend" && potBb >= 60;
-  const ironOop = def.id === "irongate" && (pos === "SB" || pos === "BB") && street === "flop" && toCall > 0;
-  const kimOver = def.id === "ceokim" && street === "river";
-  const tourneyCommit = def.id === "tourneymin";
-  const station = def.id === "stationpark";
-  const uncle = def.id === "uncleho";
-  const nit = def.id === "nitlee";
-  const song = def.id === "songtag";
-  const madamBtn = def.id === "madamj" && pos === "BTN";
-  const dozer = def.id === "bulldozer";
+  const jeongBig = !baseline && def.id === "foldjeong" && street === "river" && toCall >= pot * 0.75;
+  const jeongSmall = !baseline && def.id === "foldjeong" && street === "river" && toCall > 0 && toCall <= pot * 0.4;
+  const weekendScare = !baseline && def.id === "weekend" && potBb >= 60;
+  const ironOop = !baseline && def.id === "irongate" && (pos === "SB" || pos === "BB") && street === "flop" && toCall > 0;
+  const kimOver = !baseline && def.id === "ceokim" && street === "river";
+  const tourneyCommit = !baseline && def.id === "tourneymin";
+  const station = !baseline && def.id === "stationpark";
+  const uncle = !baseline && def.id === "uncleho";
+  const nit = !baseline && def.id === "nitlee";
+  const song = !baseline && def.id === "songtag";
+  const madamBtn = !baseline && def.id === "madamj" && pos === "BTN";
+  const dozer = !baseline && def.id === "bulldozer";
 
   let delayMs = Math.round(rng.range(420, 1100));
-  if (def.timingTell) {
+  if (!baseline && def.timingTell) {
     const read = street === "preflop" ? { strength: pf / 100, made: pf > 70 ? "toppair" : "air" } : readSpot(hole, state.board);
     const reverse = rng.float() > tellDifficulty;
     const strong = read.strength >= 0.72;
@@ -199,7 +230,7 @@ export function decideVillain(
     }
 
     if (facing3) {
-      const fourBetRange = stats.fourBet * (runtime.fourBetBoost || 1);
+      const fourBetRange = stats.fourBet * (policyRuntime.fourBetBoost || 1);
       if (pfPct <= fourBetRange && legal.canBet) return act("raise", sizingTo(state, seat, 1.1));
       if (rng.chance(stats.foldToThreeBet / 100) && pfPct > Math.min(18, stats.threeBet)) return act("fold");
       if (pfPct <= vpipThresh * 0.55) return act("call");
@@ -276,7 +307,7 @@ export function decideVillain(
     return act("fold");
   }
 
-  const betF = cbetFreq(stats, street, runtime) / 100;
+  const betF = cbetFreq(stats, street, policyRuntime) / 100;
   const wasAggressor = state.actionLog.some((a) => a.actorId === def.id && (a.type === "bet" || a.type === "raise") && (street === "flop" ? a.street === "preflop" : true));
   const shouldCbet = wasAggressor || street === "flop";
   let wantBet = false;
@@ -285,7 +316,7 @@ export function decideVillain(
   else if (draw && street !== "river") wantBet = rng.chance(betF * 0.55);
   else if (air && street === "river") {
     let bluff = stats.riverBluffFreq / 100;
-    if (kimOver && runtime.overbetBluffBoostUntil >= state.handNumber) bluff = 0.32;
+    if (kimOver && policyRuntime.overbetBluffBoostUntil >= state.handNumber) bluff = 0.32;
     if (station) bluff = 0.04;
     wantBet = rng.chance(bluff);
   } else if (shouldCbet) {
@@ -299,7 +330,7 @@ export function decideVillain(
   if (wantBet && legal.canBet) {
     let frac = profileFrac(stats.betSizingProfile);
     let over = false;
-    if (kimOver && (monster || (air && runtime.overbetBluffBoostUntil >= state.handNumber))) {
+    if (kimOver && (monster || (air && policyRuntime.overbetBluffBoostUntil >= state.handNumber))) {
       frac = 1.25;
       over = true;
     }

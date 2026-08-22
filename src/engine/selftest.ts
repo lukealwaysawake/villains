@@ -10,6 +10,10 @@ import { scoreDecision } from "../review/ev";
 import { onHandEnd } from "../villains/runtime";
 import { createRuntime } from "../villains/types";
 import { decideVillain } from "../villains/policy";
+import { EXPLOIT_RULES, type RuleContext } from "../review/rules";
+import type { Action, ActionType, Street } from "./types";
+import type { DecisionEv, DecisionSnapshot } from "../review/ev";
+import { buildDecisionAnalyses } from "../review/coaching";
 import {
   buildGuidance,
   confidenceFor,
@@ -112,6 +116,158 @@ const coachingSummary = summarizeCoachingSession([
 ]);
 assert(coachingSummary.fundamentalsScore === 60, "session score should weight a 16bb pot four times a 1bb pot");
 assert(coachingSummary.exploitScore === 100 && coachingSummary.overallScore === 72, "session total should apply 70/30 only on exploit opportunities");
+
+function ruleFixture(
+  villainId: string,
+  options: {
+    street?: Street;
+    heroType?: ActionType;
+    heroRaiseTo?: number;
+    hole?: [string, string];
+    board?: string[];
+    actions?: Action[];
+    button?: number;
+    thirdSeat?: boolean;
+    contributions?: [number, number];
+    currentBet?: number;
+    runtimeTilt?: boolean;
+    score?: DecisionEv;
+  } = {},
+): RuleContext {
+  const ids = options.thirdSeat ? ["hero", villainId, "fixture-folded"] : ["hero", villainId];
+  const state = startHand({ players: createFreshPlayers(ids), button: options.button ?? 0, handNumber: 1, seed: `rule-${villainId}` });
+  state.street = options.street ?? "preflop";
+  state.toAct = 0;
+  state.board = (options.board ?? []).map(parseCard);
+  state.actionLog = options.actions ?? [];
+  state.currentBet = options.currentBet ?? 0;
+  state.players[0].hole = (options.hole ?? ["As", "5s"]).map(parseCard) as [ReturnType<typeof parseCard>, ReturnType<typeof parseCard>];
+  state.players[0].stack = 10000;
+  state.players[1].stack = 10000;
+  state.players[0].contributedHand = options.contributions?.[0] ?? 500;
+  state.players[1].contributedHand = options.contributions?.[1] ?? 500;
+  state.players[0].contributedStreet = 0;
+  state.players[1].contributedStreet = options.actions?.at(-1)?.actorId === villainId ? Math.max(0, options.actions.at(-1)?.amount ?? 0) : 0;
+  if (options.thirdSeat) state.players[2].folded = true;
+  const runtime = createRuntime(villainId, 1);
+  if (options.runtimeTilt) {
+    runtime.emotion = "TILT";
+    runtime.emotionRemainingHands = 8;
+  }
+  const decision: DecisionSnapshot = {
+    snapshot: state,
+    runtimes: { [villainId]: runtime },
+    heroType: options.heroType ?? "check",
+    heroRaiseTo: options.heroRaiseTo ?? 0,
+  };
+  return { decision, score: options.score };
+}
+
+const act = (street: Street, actorId: string, type: ActionType, amount = 0, potBefore = 1000, timeMs = 900): Action => ({
+  street,
+  seat: actorId === "hero" ? 0 : 1,
+  actorId,
+  type,
+  amount,
+  toCall: type === "call" ? amount : 0,
+  potBefore,
+  timeMs,
+});
+
+const boundaryScore: DecisionEv = {
+  index: 1,
+  street: "river",
+  heroAction: { type: "fold", amount: 0 },
+  candidates: [
+    { action: "call", raiseTo: 0, label: "콜", ev: 0.2 },
+    { action: "fold", raiseTo: 0, label: "폴드", ev: 0 },
+  ],
+  best: { action: "call", raiseTo: 0, label: "콜", ev: 0.2 },
+  played: { action: "fold", raiseTo: 0, label: "폴드", ev: 0 },
+  lossBb: 0.2,
+  samples: 32,
+  baselineCandidates: [
+    { action: "call", raiseTo: 0, label: "콜", ev: 0.2 },
+    { action: "fold", raiseTo: 0, label: "폴드", ev: 0 },
+  ],
+  baselineBest: { action: "call", raiseTo: 0, label: "콜", ev: 0.2 },
+  baselinePlayed: { action: "fold", raiseTo: 0, label: "폴드", ev: 0 },
+  baselineLossBb: 0.2,
+};
+
+const ruleFixtures: Record<string, RuleContext> = {
+  professor: ruleFixture("professor", { heroType: "check" }),
+  greatwhite: ruleFixture("greatwhite", {
+    street: "river", heroType: "fold", hole: ["7h", "6h"], board: ["7s", "Kd", "2c", "3h", "9d"],
+    actions: [act("river", "greatwhite", "bet", 600, 1000)],
+  }),
+  songtag: ruleFixture("songtag", {
+    heroType: "fold", currentBet: 900,
+    actions: [act("preflop", "hero", "raise", 250, 150), act("preflop", "songtag", "raise", 900, 400)],
+  }),
+  irongate: ruleFixture("irongate", {
+    street: "flop", heroType: "check", board: ["Ks", "7d", "2c"],
+    actions: [act("preflop", "hero", "raise", 250, 150), act("preflop", "irongate", "call", 150, 400), act("flop", "irongate", "check")],
+  }),
+  ceokim: ruleFixture("ceokim", {
+    street: "river", heroType: "call", hole: ["7h", "6h"], board: ["7s", "Kd", "2c", "3h", "9d"],
+    actions: [act("river", "ceokim", "bet", 1200, 1000)],
+  }),
+  nitlee: ruleFixture("nitlee", { heroType: "call", actions: [act("preflop", "nitlee", "raise", 250, 150)] }),
+  stationpark: ruleFixture("stationpark", {
+    street: "river", heroType: "bet", heroRaiseTo: 300, hole: ["6h", "5h"], board: ["As", "Kd", "Qc", "Jh", "2d"],
+    actions: [act("river", "stationpark", "check")],
+  }),
+  madamj: ruleFixture("madamj", {
+    heroType: "call", hole: ["As", "Ks"], button: 1, thirdSeat: true,
+    actions: [act("preflop", "madamj", "raise", 250, 150)],
+  }),
+  bulldozer: ruleFixture("bulldozer", {
+    street: "flop", heroType: "fold", hole: ["Ah", "7h"], board: ["7s", "Kd", "2c"],
+    actions: [act("flop", "bulldozer", "bet", 500, 1000)],
+  }),
+  foldjeong: ruleFixture("foldjeong", {
+    street: "river", heroType: "bet", heroRaiseTo: 300, hole: ["6h", "5h"], board: ["As", "Kd", "Qc", "Jh", "2d"],
+    actions: [act("river", "foldjeong", "check")],
+  }),
+  uncleho: ruleFixture("uncleho", { heroType: "call", hole: ["As", "Ks"], actions: [act("preflop", "uncleho", "call", 100, 150)] }),
+  tourneymin: ruleFixture("tourneymin", {
+    street: "flop", heroType: "check", hole: ["Ah", "7h"], board: ["As", "7d", "2c"],
+    actions: [act("flop", "tourneymin", "check")],
+  }),
+  vendetta: ruleFixture("vendetta", {
+    street: "flop", heroType: "check", hole: ["Ah", "Kh"], board: ["As", "7d", "2c"], runtimeTilt: true,
+    actions: [act("flop", "vendetta", "check")],
+  }),
+  slowroll: ruleFixture("slowroll", {
+    street: "river", heroType: "fold", hole: ["7h", "6h"], board: ["7s", "Kd", "2c", "3h", "9d"], score: boundaryScore,
+    actions: [act("river", "slowroll", "bet", 600, 1000, 4200)],
+  }),
+  weekend: ruleFixture("weekend", {
+    street: "turn", heroType: "check", board: ["As", "7d", "2c", "Kh"], contributions: [3000, 3000],
+    actions: [act("turn", "weekend", "check", 0, 6000)],
+  }),
+};
+
+assert(EXPLOIT_RULES.length === 15, "all fifteen villains need one machine-readable exploit rule");
+assert(new Set(EXPLOIT_RULES.map((rule) => rule.id)).size === 15, "exploit rule ids must be stable and unique");
+for (const rule of EXPLOIT_RULES) {
+  const fixture = ruleFixtures[rule.villainId];
+  assert(!!fixture, `${rule.villainId} should have a golden trigger fixture`);
+  assert(rule.evaluate(fixture) !== null, `${rule.id} golden fixture should trigger`);
+  const guarded = structuredClone(fixture) as RuleContext;
+  const target = guarded.decision.snapshot.players.find((player) => player.id === rule.villainId);
+  if (target) target.folded = true;
+  assert(rule.evaluate(guarded) === null, `${rule.id} folded-target guard should not trigger`);
+}
+const stationPreview = buildDecisionAnalyses({
+  sessionId: "rule-session",
+  handNumber: 1,
+  decisions: [ruleFixtures.stationpark.decision],
+});
+assert(stationPreview[0].exploitRuleId === "stationpark.river_value_no_bluff", "decision analysis should retain the matched villain rule id");
+assert(stationPreview[0].analysisBasis === "rules" && stationPreview[0].confidence === "low", "preliminary rule analysis should disclose its limited basis and confidence");
+assert(stationPreview[0].guidance.nextRule.action.includes("체크"), "rule analysis should produce a concrete next-action guide");
 assert(formatSignedDollars(undefined) === "—", "unknown dollar conversion must not assume a one-dollar big blind");
 assert(formatSignedDollars(100) === "+$100", "known dollar values should render with a dollar sign");
 const mixedDollars = sumKnownDollars([
@@ -303,6 +459,7 @@ const decision = scoreDecision(
 assert(decision.candidates.length >= 3, "decision review should compare multiple legal choices");
 assert(decision.lossBb > 0, "folding aces should produce a non-zero EV loss");
 assert(decision.played.label === "폴드", "played action should use a localized label");
+assert(!!decision.baselineBest && !!decision.baselinePlayed && decision.baselineCandidates?.length === decision.candidates.length, "decision review should preserve separate baseline and exploit candidate sets");
 
 const greenReview: ReviewCard = {
   ...pricedReview,

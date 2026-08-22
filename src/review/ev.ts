@@ -3,7 +3,7 @@ import { applyAction, cloneState, legalActions, type TableState } from "../engin
 import { readSpot } from "../engine/handRank";
 import { Rng } from "../engine/rng";
 import { chipsToBb, type ActionType, type Street } from "../engine/types";
-import { decideVillain } from "../villains/policy";
+import { decideVillain, type PolicyMode } from "../villains/policy";
 import { createRuntime, type VillainRuntime } from "../villains/types";
 
 export interface CandidateEv {
@@ -22,6 +22,10 @@ export interface DecisionEv {
   played: CandidateEv;
   lossBb: number;
   samples: number;
+  baselineCandidates?: CandidateEv[];
+  baselineBest?: CandidateEv;
+  baselinePlayed?: CandidateEv;
+  baselineLossBb?: number;
 }
 
 function dollarsFromChips(chips: number): string {
@@ -52,7 +56,13 @@ function heroContinue(state: TableState): { type: ActionType; raiseTo: number } 
   return legal.canFold ? { type: "fold", raiseTo: 0 } : { type: "call", raiseTo: 0 };
 }
 
-function finish(state: TableState, runtimes: Record<string, VillainRuntime>, tell: number, guard = 80): TableState {
+function finish(
+  state: TableState,
+  runtimes: Record<string, VillainRuntime>,
+  tell: number,
+  mode: PolicyMode,
+  guard = 80,
+): TableState {
   let cur = state;
   let n = 0;
   while (cur.street !== "complete" && cur.toAct !== null && n++ < guard) {
@@ -62,7 +72,7 @@ function finish(state: TableState, runtimes: Record<string, VillainRuntime>, tel
       cur = applyAction(cur, move.type, move.raiseTo);
     } else {
       const rt = runtimes[actor.id] ?? createRuntime(actor.id, actor.seat);
-      const d = decideVillain(cur, rt, tell, true);
+      const d = decideVillain(cur, rt, tell, true, mode);
       cur = applyAction(cur, d.type, d.raiseTo);
     }
   }
@@ -93,13 +103,14 @@ export function evForAction(
   runtimes: Record<string, VillainRuntime>,
   samples: number,
   tell = 0.78,
+  mode: PolicyMode = "exploit",
 ): number {
   let sum = 0;
   const count = Math.max(1, samples);
   for (let i = 0; i < count; i++) {
     const sampled = resampleHiddenCards(state, i);
     const branched = applyAction(sampled, type, raiseTo);
-    const done = finish(branched, runtimes, tell);
+    const done = finish(branched, runtimes, tell, mode);
     sum += done.result?.heroDelta ?? 0;
   }
   return chipsToBb(sum / count, state.bb);
@@ -180,30 +191,40 @@ export function scoreDecision(
   tell = 0.78,
 ): DecisionEv {
   const cands = candidateList(snapshot);
-  const scored: CandidateEv[] = cands.map((c) => ({
-    action: c.type,
-    raiseTo: c.raiseTo,
-    label: c.label,
-    ev: evForAction(snapshot, c.type, c.raiseTo, runtimes, samples, tell),
-  }));
   const sized = heroType === "bet" || heroType === "raise" || heroType === "allin";
-  const played = scored.find((c) => c.action === heroType && (!sized || c.raiseTo === heroRaiseTo)) ?? {
-    action: heroType,
-    raiseTo: heroRaiseTo,
-    label: actionLabel(heroType, heroRaiseTo),
-    ev: evForAction(snapshot, heroType, heroRaiseTo, runtimes, samples, tell),
+  const scoreMode = (mode: PolicyMode) => {
+    const scored: CandidateEv[] = cands.map((candidate) => ({
+      action: candidate.type,
+      raiseTo: candidate.raiseTo,
+      label: candidate.label,
+      ev: evForAction(snapshot, candidate.type, candidate.raiseTo, runtimes, samples, tell, mode),
+    }));
+    const played = scored.find((candidate) => candidate.action === heroType && (!sized || candidate.raiseTo === heroRaiseTo)) ?? {
+      action: heroType,
+      raiseTo: heroRaiseTo,
+      label: actionLabel(heroType, heroRaiseTo),
+      ev: evForAction(snapshot, heroType, heroRaiseTo, runtimes, samples, tell, mode),
+    };
+    if (!scored.includes(played)) scored.push(played);
+    const best = scored.reduce((a, b) => (b.ev > a.ev ? b : a), scored[0] ?? played);
+    const lossBb = Math.max(0, Math.round((best.ev - played.ev) * 10) / 10);
+    return { candidates: scored.sort((a, b) => b.ev - a.ev), best, played, lossBb };
   };
-  if (!scored.includes(played)) scored.push(played);
-  const best = scored.reduce((a, b) => (b.ev > a.ev ? b : a), scored[0]);
+  const exploit = scoreMode("exploit");
+  const baseline = scoreMode("baseline");
   return {
     index: snapshot.actionLog.length,
     street: snapshot.street as Street,
     heroAction: { type: heroType, amount: heroRaiseTo },
-    candidates: scored.sort((a, b) => b.ev - a.ev),
-    best,
-    played,
-    lossBb: Math.max(0, Math.round((best.ev - played.ev) * 10) / 10),
+    candidates: exploit.candidates,
+    best: exploit.best,
+    played: exploit.played,
+    lossBb: exploit.lossBb,
     samples: Math.max(1, samples),
+    baselineCandidates: baseline.candidates,
+    baselineBest: baseline.best,
+    baselinePlayed: baseline.played,
+    baselineLossBb: baseline.lossBb,
   };
 }
 
