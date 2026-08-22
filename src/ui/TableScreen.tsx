@@ -287,9 +287,6 @@ export function TableScreen({
               {legal.callAmount > 0 ? "레이즈" : "벳"}
             </button>
           </div>
-          {legal.canBet && (
-            <button className="btn allin wide" style={{ marginTop: 8 }} onClick={() => act("allin", legal.maxRaiseTo)}>올인 {bb(legal.maxRaiseTo)}</button>
-          )}
           {legal.canCall && legal.callAmount > 0 && (
             <div className="odds-line">팟오즈 {Math.round((legal.callAmount / (legal.pot + legal.callAmount)) * 100)}%</div>
           )}
@@ -301,6 +298,7 @@ export function TableScreen({
                     {p.label}
                   </button>
                 ))}
+                <button className="on-allin" onClick={() => act("allin", legal.maxRaiseTo)}>올인</button>
               </div>
               <input type="range" min={legal.minBet} max={legal.maxRaiseTo} step={BB / 2} value={raiseTo} onChange={(e) => setRaiseTo(Number(e.target.value))} />
               <button className="btn launch wide" style={{ marginTop: 8 }} onClick={() => act(legal.callAmount > 0 ? "raise" : "bet", raiseTo)}>

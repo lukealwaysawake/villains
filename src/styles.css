@@ -997,3 +997,73 @@ input[type="range"] { width: 100%; accent-color: var(--gold); margin-top: 8px; }
   0% { box-shadow: 0 0 0 0 rgba(240,212,138,0.6); opacity: 1; }
   100% { box-shadow: 0 0 0 18px rgba(240,212,138,0); opacity: 0; }
 }
+
+/* iphone air play */
+.screen.play {
+  overflow: hidden;
+  padding: calc(6px + var(--safe-top)) 8px calc(8px + var(--safe-bot));
+}
+.screen.play .table { overflow: hidden; }
+.screen.play .action { padding: 8px; border-radius: 16px; }
+.screen.play .acts .btn { min-height: 46px; }
+.screen.play .toast {
+  top: calc(var(--safe-top) + 44px);
+  max-width: 78%;
+  font-size: 11px;
+  padding: 6px 10px;
+}
+.screen.play .ticker { top: 4px; bottom: auto; justify-content: center; }
+.seat.s0 { width: 148px; bottom: 0; }
+.seat.s0 .hole { margin-bottom: 2px; }
+.pcard-3d.lg { width: 42px; height: 58px; }
+.sizes .on-allin {
+  border: 1px solid #d16452;
+  color: #f0c2ba;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  background: #3a2220;
+}
+
+@media (max-width: 480px) {
+  .playtop { font-size: 11px; }
+  .playtop .chip { padding: 4px 7px; }
+  .seat { width: 86px; }
+  .seat.s0 { width: 136px; }
+  .seat.s1 { left: 2%; top: 54%; }
+  .seat.s2 { left: 4%; top: 16%; }
+  .seat.s3 { top: 2%; }
+  .seat.s4 { right: 4%; top: 16%; }
+  .seat.s5 { right: 2%; top: 54%; }
+  .seat-card { min-width: 70px; padding: 3px 5px; }
+  .seat.s0 .seat-card { min-width: 108px; }
+  .tool-chips { display: none; }
+  .seat.s0 .tool-chips, .seat.turn .tool-chips { display: flex; }
+  .felt-wood { inset: 10% 5% 20%; }
+  .felt-ring { inset: 14% 9% 24%; }
+  .board { top: 40%; }
+  .last-act { font-size: 8px; top: -12px; }
+}
+
+@media (max-height: 820px) {
+  .pcard-3d.lg { width: 38px; height: 54px; }
+  .acts .btn { min-height: 44px; }
+  .odds-line { display: none; }
+  .win-banner { padding: 6px 8px !important; min-width: 120px !important; }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .shell { position: relative; }
+  .shell::after {
+    content: "세로로 돌려 주세요";
+    position: absolute;
+    inset: 0;
+    background: #07080b;
+    color: #f0d48a;
+    display: grid;
+    place-items: center;
+    z-index: 40;
+    font-family: Fraunces, serif;
+    font-size: 22px;
+  }
+}
