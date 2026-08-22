@@ -256,15 +256,11 @@ export function TableScreen({
 
   return (
     <section className="screen play">
-      <div className="playtop">
-        <div className="left">
-          <button className="chip" onClick={onExit}>종료</button>
-          {session.room ? <span className="chip">${session.room.sb ?? 0.5}/${session.room.bb ?? 1}</span> : null}
-          <span className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</span>
-        </div>
-        <div className="right">
-          <span className="chip">#{table.handNumber}</span>
-        </div>
+      <div className="playhud">
+        <button className="hud-exit" onClick={onExit}>종료</button>
+        <b className="hud-stakes">{session.room ? `${session.room.sb ?? 0.5}/${session.room.bb ?? 1}` : "캐시"}</b>
+        <span className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</span>
+        <span className="hud-hand">#{table.handNumber}</span>
       </div>
 
       <FeltTable

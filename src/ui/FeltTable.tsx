@@ -77,7 +77,9 @@ export function FeltTable({
       <div className="felt-wood" />
       <div className="felt-ring" />
       <div className="felt-well" />
-      <div className="street-flash" key={`${table.handNumber}-${table.street}`}>{streetKo}</div>
+      {table.street !== "preflop" && table.street !== "complete" && (
+        <div className="street-flash" key={`${table.handNumber}-${table.street}`}>{streetKo}</div>
+      )}
 
       {splash && (
         <div className={`splash ${splash.kind}`} key={splash.key}>
