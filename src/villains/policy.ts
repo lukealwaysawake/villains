@@ -213,7 +213,7 @@ export function decideVillain(
 
   const read = readSpot(hole, state.board);
   if (state.board.length >= 3) {
-    const eq = equityVsRandom(hole, state.board, 40, `${state.seed}:${state.handNumber}:${def.id}`);
+    const eq = equityVsRandom(hole, state.board, 24, `${state.seed}:${state.handNumber}:${def.id}`);
     read.strength = Math.min(0.995, read.strength * 0.55 + eq * 0.45);
   }
   let calldown = stats.showdownCalldownThreshold;
@@ -242,7 +242,7 @@ export function decideVillain(
       }
       return act("call");
     }
-    if (legal.canBet && stats.aggressionFactor >= 2.4 && read.strength >= 0.5 && rng.chance(Math.min(0.6, stats.aggressionFactor / 7))) {
+    if (raises <= 1 && legal.canBet && stats.aggressionFactor >= 2.4 && read.strength >= 0.62 && rng.chance(Math.min(0.45, stats.aggressionFactor / 9))) {
       return act("raise", sizingTo(state, seat, profileFrac(stats.betSizingProfile), kimOver));
     }
     if (read.strength >= calldown) return act("call");

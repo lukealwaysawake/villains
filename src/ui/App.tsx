@@ -462,8 +462,8 @@ function Fairness({ session, go }: { session: Session | null; go: (s: Screen) =>
       </div>
       <div className="card">
         <b>빌런 성향 검증</b>
-        <p className="kicker">설계값(스펙) 대비 실제 플레이를 측정합니다. 600핸드 자기대전.</p>
-        <button className="btn wide" onClick={() => setProbe(behaviorProbe(600))}>성향 측정</button>
+        <p className="kicker">설계값(스펙) 대비 실제 플레이를 측정합니다. 300핸드 자기대전. 몇 초 걸립니다..</p>
+        <button className="btn wide" onClick={() => setProbe(behaviorProbe(300))}>성향 측정</button>
         {probe && (
           <div className="probe-rows">
             <div className="probe-head">
