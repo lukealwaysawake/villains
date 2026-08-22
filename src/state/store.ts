@@ -50,6 +50,8 @@ export interface Mastery {
   handsPlayed: number;
   sessionsPlayed: number;
   bb: number;
+  dollarDelta: number;
+  dollarHands: number;
   exploitHits: number;
   exploitChances: number;
   leaksFound: string[];
@@ -144,9 +146,10 @@ export interface HabitRecord {
   leak?: string;
   count: number;
   totalLossBb: number;
+  totalLossDollars?: number;
   lastAt: number;
   villains: string[];
-  examples: { at: number; handNumber: number; body: string; loss: number }[];
+  examples: { at: number; handNumber: number; body: string; loss: number; lossDollars?: number }[];
 }
 
 const KEY = "villains.v1";
@@ -161,7 +164,7 @@ export const defaultSettings = (): Settings => ({
 });
 
 export function emptyMastery(): Mastery {
-  return { handsPlayed: 0, sessionsPlayed: 0, bb: 0, exploitHits: 0, exploitChances: 0, leaksFound: [], hintsUsed: false };
+  return { handsPlayed: 0, sessionsPlayed: 0, bb: 0, dollarDelta: 0, dollarHands: 0, exploitHits: 0, exploitChances: 0, leaksFound: [], hintsUsed: false };
 }
 
 export function defaultProfile(): Profile {
@@ -191,7 +194,10 @@ export function loadProfile(): Profile {
       ...base,
       ...parsed,
       settings: { ...base.settings, ...(parsed.settings ?? {}) },
-      mastery: { ...base.mastery, ...(parsed.mastery ?? {}) },
+      mastery: Object.fromEntries(VILLAINS.map((villain) => [
+        villain.id,
+        { ...emptyMastery(), ...(parsed.mastery?.[villain.id] ?? {}) },
+      ])),
       daily: parsed.daily ?? base.daily,
       savedCombos: parsed.savedCombos ?? [],
       sessionHistory: parsed.sessionHistory ?? [],
@@ -411,12 +417,15 @@ export function commitHand(profile: Profile, session: Session, state: TableState
   for (const id of session.villainIds.filter((villainId) => state.players.some((player) => player.id === villainId))) {
     const m = profile.mastery[id] ?? emptyMastery();
     m.handsPlayed += 1;
+    m.dollarHands = (m.dollarHands ?? 0) + 1;
     const hero = state.players.find((p) => p.id === "hero");
     const villain = state.players.find((p) => p.id === id);
     const involved = state.players.filter((p) => p.id !== "hero" && p.contributedHand > 0);
     const potShare = involved.reduce((s, p) => s + p.contributedHand, 0);
     if (hero && villain && hero.contributedHand > 0 && villain.contributedHand > 0 && potShare > 0) {
-      m.bb += delta * (villain.contributedHand / potShare);
+      const share = villain.contributedHand / potShare;
+      m.bb += delta * share;
+      m.dollarDelta = (m.dollarDelta ?? 0) + delta * (state.bb / 100) * share;
     }
     if (review.villainId === id && review.leak) {
       m.exploitChances += 1;
@@ -521,7 +530,10 @@ export function importProfile(raw: string): Profile {
     ...base,
     ...parsed,
     settings: { ...base.settings, ...(parsed.settings ?? {}) },
-    mastery: { ...base.mastery, ...(parsed.mastery ?? {}) },
+    mastery: Object.fromEntries(VILLAINS.map((villain) => [
+      villain.id,
+      { ...emptyMastery(), ...(parsed.mastery?.[villain.id] ?? {}) },
+    ])),
     daily: parsed.daily ?? base.daily,
     savedCombos: parsed.savedCombos ?? [],
     sessionHistory: parsed.sessionHistory ?? [],
@@ -547,11 +559,15 @@ export function recordHabit(habits: HabitRecord[], review: ReviewCard): HabitRec
   const now = Date.now();
   const list = [...habits];
   const idx = list.findIndex((h) => h.tag === tag);
+  const lossDollars = review.bigBlindDollars === undefined
+    ? undefined
+    : Math.round(review.totalLossBb * review.bigBlindDollars * 100) / 100;
   const example = {
     at: now,
     handNumber: review.handNumber,
     body: review.body,
     loss: review.totalLossBb,
+    lossDollars,
   };
   if (idx >= 0) {
     const cur = list[idx];
@@ -561,6 +577,9 @@ export function recordHabit(habits: HabitRecord[], review: ReviewCard): HabitRec
       ...cur,
       count: cur.count + 1,
       totalLossBb: Math.round((cur.totalLossBb + review.totalLossBb) * 10) / 10,
+      totalLossDollars: lossDollars === undefined
+        ? cur.totalLossDollars
+        : Math.round(((cur.totalLossDollars ?? 0) + lossDollars) * 100) / 100,
       lastAt: now,
       leak: cur.leak ?? review.leak,
       villains,
@@ -572,6 +591,7 @@ export function recordHabit(habits: HabitRecord[], review: ReviewCard): HabitRec
       leak: review.leak,
       count: 1,
       totalLossBb: review.totalLossBb,
+      totalLossDollars: lossDollars,
       lastAt: now,
       villains: review.villainId ? [review.villainId] : [],
       examples: [example],

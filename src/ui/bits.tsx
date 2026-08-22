@@ -1,6 +1,7 @@
 import type { CSSProperties, KeyboardEvent } from "react";
 import { VILLAIN_BY_ID } from "../villains/catalog";
 import type { Screen } from "../state/store";
+import { bbToDollars, formatSignedDollars } from "./money";
 export type { Screen };
 export { PlayingCard, ChipStack } from "./PlayingCard";
 
@@ -33,13 +34,7 @@ export function bb(chips: number): string {
 
 /** Session and review values are stored in big blinds. Convert only when the room's dollar BB is known. */
 export function signedBb(value: number, bigBlindDollars?: number): string {
-  const converted = bigBlindDollars === undefined ? value : value * bigBlindDollars;
-  const rounded = Math.round(converted * 100) / 100;
-  const body = Math.abs(rounded) % 1 === 0
-    ? Math.abs(rounded).toFixed(0)
-    : Math.abs(rounded).toFixed(2).replace(/0$/, "");
-  const sign = rounded > 0 ? "+" : rounded < 0 ? "−" : "";
-  return `${sign}$${body}`;
+  return formatSignedDollars(bbToDollars(value, bigBlindDollars));
 }
 
 /** Convert bb-based help copy using the selected room's dollar big blind. */

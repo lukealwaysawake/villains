@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { VILLAIN_BY_ID } from "../villains/catalog";
 import { Segmented, signedBb, type Screen } from "./bits";
+import { formatSignedDollars, sumKnownDollars } from "./money";
 import type { Profile } from "../state/store";
 
 type Tab = "pattern" | "kibo" | "session";
@@ -16,7 +17,8 @@ export function Analyze({
   const sessions = profile.sessionHistory ?? [];
   const hands = profile.handLog ?? [];
   const habits = [...(profile.habits ?? [])].sort((a, b) => b.totalLossBb - a.totalLossBb || b.count - a.count);
-  const life = sessions.reduce((sum, item) => sum + item.bbDelta * (item.bigBlindDollars ?? 1), 0);
+  const life = sumKnownDollars(sessions);
+  const lifeValue = life.tracked > 0 || sessions.length === 0 ? life.value : undefined;
   const last = profile.lastSession;
   const hs = last?.heroStats;
   const vpip = hs && hs.hands ? Math.round((hs.vpip / hs.hands) * 100) : 0;
@@ -32,7 +34,7 @@ export function Analyze({
       <div className="grid3">
         <div className="card"><div className="muted">핸드</div><b>{profile.lifetimeHands}</b></div>
         <div className="card"><div className="muted">세션</div><b>{sessions.length}</b></div>
-        <div className="card"><div className="muted">손익</div><b className={life >= 0 ? "good" : "bad"}>{signedBb(life, 1)}</b></div>
+        <div className="card"><div className="muted">{life.complete ? "손익" : "확인된 손익"}</div><b className={(lifeValue ?? 0) >= 0 ? "good" : "bad"}>{formatSignedDollars(lifeValue)}</b></div>
       </div>
       <Segmented
         label="기록 보기"
@@ -67,7 +69,7 @@ export function Analyze({
                 <div style={{ flex: 1 }}>
                   <b>{h.tag}</b>
                   <div className="kicker">
-                    {h.count}회 · {signedBb(-h.totalLossBb)}
+                    {h.count}회 · 확인 손실 {formatSignedDollars(h.totalLossDollars === undefined ? undefined : -h.totalLossDollars)}
                     {h.villains.length ? " · " + h.villains.map((id) => VILLAIN_BY_ID[id]?.name ?? id).join(", ") : ""}
                   </div>
                   {h.examples[0] && <div className="kicker">{h.examples[0].body}</div>}

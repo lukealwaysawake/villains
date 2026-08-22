@@ -2,7 +2,9 @@ import { evaluate5, evaluateBest } from "./handRank";
 import { parseCard } from "./cards";
 import { applyAction, createFreshPlayers, positionFor, startHand } from "./game";
 import { Rng } from "./rng";
-import { canContinueSession, createSession, dealNext, defaultRoom } from "../state/store";
+import { canContinueSession, commitHand, createSession, dealNext, defaultProfile, defaultRoom, loadProfile, recordHabit } from "../state/store";
+import type { ReviewCard } from "../review/analyze";
+import { dollarRateStatus, formatSignedDollars, sumKnownDollars } from "../ui/money";
 
 let assertions = 0;
 function assert(cond: boolean, msg: string) {
@@ -19,6 +21,59 @@ assert(royal.value > wheel.value, "royal > wheel");
 const quads = evaluateBest(["Ah", "Ad", "Ac", "As", "2h", "2d", "9c"].map(parseCard));
 assert(quads.category === 7, "quads");
 assert(positionFor(0, 0, 2) === "SB" && positionFor(0, 1, 2) === "BB", "heads-up positions should show SB and BB");
+assert(formatSignedDollars(undefined) === "—", "unknown dollar conversion must not assume a one-dollar big blind");
+assert(formatSignedDollars(100) === "+$100", "known dollar values should render with a dollar sign");
+const mixedDollars = sumKnownDollars([
+  { bbDelta: 20, bigBlindDollars: 5 },
+  { bbDelta: -10 },
+]);
+assert(mixedDollars.value === 100 && mixedDollars.tracked === 1 && !mixedDollars.complete, "mixed-stake totals must sum only grounded dollar values");
+const pricedReview: ReviewCard = {
+  id: "priced-review",
+  handNumber: 1,
+  severity: "red",
+  totalLossBb: 10,
+  bigBlindDollars: 5,
+  street: "river",
+  headline: "가격 검증",
+  body: "10bb loss at a five-dollar big blind",
+  alt: "",
+  statLabel: "",
+  statValue: "",
+  viewed: false,
+};
+const pricedHabit = recordHabit([], pricedReview)[0] as ReturnType<typeof recordHabit>[number] & { totalLossDollars?: number };
+assert(pricedHabit.totalLossDollars === 50, "habit ledger must persist exact dollar loss at the originating stake");
+
+let storedProfile: string | null = null;
+Object.assign(globalThis, { localStorage: { getItem: () => storedProfile, setItem: (_key: string, value: string) => { storedProfile = value; } } });
+storedProfile = JSON.stringify({ mastery: { uncleho: { handsPlayed: 20, sessionsPlayed: 2, bb: 40, exploitHits: 0, exploitChances: 0, leaksFound: [], hintsUsed: false } } });
+const migratedProfile = loadProfile();
+assert(migratedProfile.mastery.uncleho.dollarHands === 0 && migratedProfile.mastery.uncleho.dollarDelta === 0, "legacy BB mastery must not invent dollar history during migration");
+const partialRate = dollarRateStatus(25, 1, 21);
+assert(!partialRate.complete && partialRate.label === "확인된 $/100 · 1핸드", "partially tracked mastery must disclose its priced-hand denominator");
+storedProfile = null;
+const ledgerRoom = defaultRoom({ seats: 4, sb: 2.5, bb: 5, startStack: 100 });
+const ledgerSession = createSession(["uncleho", "nitlee"], "ledger-test", { room: ledgerRoom });
+let ledgerState = startHand({
+  players: createFreshPlayers(["hero", "uncleho", "nitlee"], 10000),
+  button: 0,
+  handNumber: 1,
+  seed: "ledger-test",
+  buyIn: 10000,
+  sb: 250,
+  bb: 500,
+});
+ledgerState = applyAction(ledgerState, "allin", 10000);
+ledgerState = applyAction(ledgerState, "call");
+ledgerState = applyAction(ledgerState, "call");
+assert(ledgerState.street === "complete", "ledger test hand should reach completion");
+const ledgerProfile = defaultProfile();
+commitHand(ledgerProfile, ledgerSession, ledgerState, { ...pricedReview, handNumber: 1, bigBlindDollars: 5 });
+const trackedMastery = [ledgerProfile.mastery.uncleho, ledgerProfile.mastery.nitlee] as Array<typeof ledgerProfile.mastery.uncleho & { dollarDelta?: number; dollarHands?: number }>;
+const masteryDollarTotal = trackedMastery.reduce((sum, mastery) => sum + (mastery.dollarDelta ?? 0), 0);
+assert(trackedMastery.every((mastery) => mastery.dollarHands === 1), "mastery ledger must track hands priced at the originating stake");
+assert(Math.abs(masteryDollarTotal - ledgerSession.bbDelta * 5) < 0.001, "mastery dollar PnL must equal grounded BB PnL times the source stake");
 
 const players = createFreshPlayers(["hero", "a", "b", "c", "d", "e"]);
 let state = startHand({ players, button: 0, handNumber: 1, seed: "test" });

@@ -1,12 +1,14 @@
 import { VILLAIN_BY_ID } from "../villains/catalog";
 import type { Profile, Screen } from "../state/store";
 import { signedBb } from "./bits";
+import { formatSignedDollars, sumKnownDollars } from "./money";
 
 export function History({ profile, go }: { profile: Profile; go: (s: Screen) => void }) {
   const sessions = profile.sessionHistory ?? [];
   const hands = profile.handLog ?? [];
   const habits = [...(profile.habits ?? [])].sort((a, b) => b.totalLossBb - a.totalLossBb);
-  const lifeDollars = sessions.reduce((sum, item) => sum + item.bbDelta * (item.bigBlindDollars ?? 1), 0);
+  const lifeDollars = sumKnownDollars(sessions);
+  const lifeValue = lifeDollars.tracked > 0 || sessions.length === 0 ? lifeDollars.value : undefined;
   return (
     <section className="screen">
       <div className="topbar">
@@ -17,7 +19,7 @@ export function History({ profile, go }: { profile: Profile; go: (s: Screen) => 
       <div className="grid3">
         <div className="card"><div className="muted">누적 핸드</div><b>{profile.lifetimeHands}</b></div>
         <div className="card"><div className="muted">세션</div><b>{sessions.length}</b></div>
-        <div className="card"><div className="muted">세션 합</div><b className={lifeDollars >= 0 ? "good" : "bad"}>{signedBb(lifeDollars, 1)}</b></div>
+        <div className="card"><div className="muted">{lifeDollars.complete ? "세션 합" : "확인된 세션 합"}</div><b className={(lifeValue ?? 0) >= 0 ? "good" : "bad"}>{formatSignedDollars(lifeValue)}</b></div>
       </div>
       <div className="insight">
         <div className="row"><span className="idx">00</span><b>내 패턴 분석</b></div>
@@ -28,7 +30,7 @@ export function History({ profile, go }: { profile: Profile; go: (s: Screen) => 
             <div style={{ flex: 1 }}>
               <b>{h.tag}</b>
               <div className="kicker">
-                {h.count}회 · 손실 {signedBb(-h.totalLossBb)}
+                {h.count}회 · 확인 손실 {formatSignedDollars(h.totalLossDollars === undefined ? undefined : -h.totalLossDollars)}
                 {h.villains.length ? " · " + h.villains.map((id) => VILLAIN_BY_ID[id]?.name ?? id).join(", ") : ""}
               </div>
               {h.examples[0] && <div className="kicker">{h.examples[0].body}</div>}

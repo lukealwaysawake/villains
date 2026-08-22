@@ -21,6 +21,7 @@ import {
 import { verifyCommit } from "../engine/fairness";
 import { roundRobin, behaviorProbe, type BehaviorRow } from "../engine/sim";
 import { Avatar, Nav, PageHeader, PlayingCard, ChipStack, Segmented, bb100CopyToDollars, bbCopyToDollars, signedBb } from "./bits";
+import { dollarRateStatus, formatSignedDollars } from "./money";
 import { TableScreen } from "./TableScreen";
 import { Analyze } from "./Analyze";
 import { SessionRecap } from "./SessionRecap";
@@ -367,6 +368,7 @@ function Detail({
   const m = profile.mastery[id];
   const canHint = canShowHint(profile, id);
   const dollarBb = profile.lastRoom?.room.bb ?? defaultRoom().bb;
+  const dollarRate = dollarRateStatus(m.dollarDelta, m.dollarHands, m.handsPlayed);
   return (
     <section className="screen detail-screen no-nav">
       <PageHeader eyebrow="OPPONENT" title="상대 분석" onBack={back} titleAs="span" />
@@ -380,7 +382,7 @@ function Detail({
       </div>
       <div className="grid3">
         <div className="card"><div className="muted">핸드</div><b>{m.handsPlayed}</b></div>
-        <div className="card"><div className="muted">$/100핸드</div><b>{m.handsPlayed ? signedBb((m.bb / m.handsPlayed) * 100, dollarBb) : "—"}</b></div>
+        <div className="card"><div className="muted">{dollarRate.label}</div><b>{formatSignedDollars(dollarRate.value)}</b></div>
         <div className="card"><div className="muted">숙련</div><b>{masteryPct(m)}%</b></div>
       </div>
       <div className="card">
