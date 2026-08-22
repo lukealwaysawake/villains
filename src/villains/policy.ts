@@ -173,7 +173,8 @@ export function decideVillain(
     const passivity = 1 - Math.min(1, stats.pfr / Math.max(1, stats.vpip));
     const limpThresh = passivity > 0.45 ? vpipThresh : 0;
     if (toCall === 0 || (toCall <= BB && raises === 0 && player.contributedStreet >= BB)) {
-      if (pfPct <= openThresh && legal.canBet) {
+      const stealWide = madamBtn ? 1.5 : 1;
+      if (pfPct <= openThresh * stealWide && legal.canBet) {
         const frac = pos === "BTN" || pos === "CO" ? 2.3 : 2.5;
         return act("raise", sizingTo(state, seat, frac / 3));
       }
@@ -205,9 +206,6 @@ export function decideVillain(
     }
 
     if (facingOpen) {
-      if (madamBtn && rng.chance(0.65) && pfPct > 20) {
-        return legal.canFold ? act("fold") : act("call");
-      }
       const threeBetRange = stats.threeBet * (1 + 0.5 * Math.max(0, stats.aggressionFactor - 2.4));
       if (pfPct <= threeBetRange && legal.canBet) return act("raise", sizingTo(state, seat, 0.95));
       if (uncle && pfPct <= stats.vpip) return act("call");

@@ -209,15 +209,16 @@ export function legalActions(state: TableState, seat: number): LegalActions {
   const maxRaiseTo = p.stack + p.contributedStreet;
   const canCall = toCall > 0 && p.stack > 0;
   const canCheck = toCall === 0 && !p.folded;
-  const canBet = toCall === 0 && p.stack > 0 && state.currentBet === 0;
+  const canOpen = toCall === 0 && p.stack > 0 && state.currentBet === 0;
+  const canOption = toCall === 0 && p.stack > 0 && state.currentBet > 0;
   const canRaise = toCall > 0 && p.stack > toCall;
   return {
     canFold: !p.folded && toCall > 0,
     canCheck,
     canCall,
     callAmount: Math.min(toCall, p.stack),
-    canBet: canBet || canRaise,
-    minBet: canBet ? minBet : minRaiseTo,
+    canBet: canOpen || canOption || canRaise,
+    minBet: canOpen ? minBet : minRaiseTo,
     minRaiseTo,
     maxRaiseTo,
     pot,
