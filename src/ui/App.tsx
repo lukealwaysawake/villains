@@ -554,5 +554,3 @@ function Fairness({ session, go }: { session: Session | null; go: (s: Screen) =>
     </section>
   );
 }
-  );
-}
