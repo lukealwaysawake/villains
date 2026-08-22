@@ -8,7 +8,6 @@ import {
   isUnlocked,
   loadProfile,
   masteryPct,
-  remainingDailyHands,
   saveProfile,
   sessionPatterns,
   archiveSession,
@@ -135,28 +134,25 @@ function Onboarding({ onDone }: { onDone: () => void }) {
   return (
     <section className="screen">
       <div className="eyebrow">VILLAINS</div>
-      <h1 className="brand" style={{ marginTop: 12 }}>읽을 수 있는<br />상대.</h1>
+      <h1 className="brand on-title">읽을 수 있는<br/>상대</h1>
       {step === 0 && (
-        <>
-          <p className="kicker" style={{ margin: "16px 0 24px" }}>
-            15명의 AI 빌런이 각자 한두 개의 구멍을 가지고 있습니다. 찾아내고, 착취하고, 숫자로 확인하세요.
-          </p>
-          <button className="btn primary wide" onClick={() => setStep(1)}>포커 룰은 압니다</button>
-          <button className="btn wide" style={{ marginTop: 8 }} onClick={() => setStep(1)}>간단히 보고 시작</button>
-        </>
+        <div className="on-body">
+          <p className="kicker">빌런 15명. 구멍은 각자 하나씩 있다. 찾아서 패면 된다.</p>
+          <button className="btn primary wide" onClick={() => setStep(1)}>시작</button>
+        </div>
       )}
       {step === 1 && (
-        <>
+        <div className="on-body">
           <div className="card">
-            <b>튜토리얼 테이블</b>
-            <p className="kicker">삼촌 · 이대리 · 박사장이 앉아 있습니다. 힌트가 켜진 채로 30핸드만 치면 됩니다.</p>
+            <b>입문 테이블</b>
+            <p className="kicker">삼촌, 이대리, 박사장. 힌트 켜고 30핸드.</p>
           </div>
           <div className="card">
-            <b>리뷰는 강제하지 않습니다</b>
-            <p className="kicker">핸드가 끝나면 점만 뜹니다. 보고 싶을 때 탭하세요. 스킵하면 큐에 쌓입니다.</p>
+            <b>리뷰는 안 막음</b>
+            <p className="kicker">핸드 끝나면 점만 뜬다. 보고 싶을 때 탭. 스킵하면 분석에 쌓인다.</p>
           </div>
-          <button className="btn primary wide" style={{ marginTop: 18 }} onClick={onDone}>입문 테이블 앉기</button>
-        </>
+          <button className="btn primary wide" onClick={onDone}>입문 테이블</button>
+        </div>
       )}
     </section>
   );
@@ -177,16 +173,18 @@ function Home({
     const worst = Object.entries(profile.mastery)
       .filter(([, m]) => m.handsPlayed >= 20)
       .sort((a, b) => a[1].bb / a[1].handsPlayed - b[1].bb / b[1].handsPlayed)[0];
-    if (!worst) return "입문 테이블에서 삼촌과 박사장의 차이를 먼저 느껴보세요.";
-    return `${VILLAIN_BY_ID[worst[0]].name} 상대 성적이 제일 낮습니다. 오늘 여기를 파세요.`;
-  }, [profile.mastery]);
+    const habit = topHabits(profile, 2)[0];
+    if (habit) return `${habit.tag} · ${habit.count}회. 분석 탭에서 보세요.`;
+    if (!worst) return "삼촌이랑 박사장부터 붙어 보세요.";
+    return `${VILLAIN_BY_ID[worst[0]].name}한테 제일 많이 잃었습니다.`;
+  }, [profile]);
 
   return (
     <section className="screen">
       <div className="atmosphere" aria-hidden="true"><i /><i /><i /></div>
       <div className="topbar">
-        <div className="brand">VILLAINS<small>NLHE 착취 트레이너</small></div>
-        <span className="tier">{profile.lifetimeHands} HANDS · 오늘 {remainingDailyHands(profile) >= 99999 ? "∞" : remainingDailyHands(profile)}</span>
+        <div className="brand">VILLAINS<small>착취 연습</small></div>
+        <span className="tier">{profile.lifetimeHands}핸드</span>
       </div>
       {session && session.handsPlayed > 0 && (
         <button className="card" style={{ width: "100%", textAlign: "left" }} onClick={resume}>
@@ -198,12 +196,11 @@ function Home({
         </button>
       )}
       <div className="insight">
-        <div className="row"><span className="idx">01</span><span className="eyebrow">오늘의 집중</span></div>
+        <div className="row"><span className="idx">01</span><span className="eyebrow">오늘</span></div>
         <p className="kicker" style={{ marginTop: 8 }}>{focus}</p>
-        <div className="meter"><i style={{ width: "46%" }} /></div>
       </div>
-      <button className="btn launch wide" style={{ margin: "12px 0" }} onClick={() => go("lobby")}>테이블 앉기</button>
-      <button className="btn glass wide" onClick={() => go("analyze")}>플레이 기록 {profile.lifetimeHands}핸드</button>
+      <button className="btn launch wide" style={{ margin: "12px 0 8px" }} onClick={() => go("lobby")}>테이블</button>
+      <button className="btn glass wide" onClick={() => go("analyze")}>분석 · 기보</button>
       <div className="row" style={{ margin: "8px 0 10px" }}>
         <b>빌런 숙련도</b>
         <button className="btn ghost" onClick={() => go("dex")}>도감</button>

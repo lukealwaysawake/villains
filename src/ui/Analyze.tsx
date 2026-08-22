@@ -34,7 +34,7 @@ export function Analyze({
         <div className="card"><div className="muted">세션</div><b>{sessions.length}</b></div>
         <div className="card"><div className="muted">손익</div><b className={life >= 0 ? "good" : "bad"}>{signedBb(life)}</b></div>
       </div>
-      <div className="sizes" style={{ marginTop: 10 }}>
+      <div className="seg">
         <button className={tab === "pattern" ? "on" : ""} onClick={() => setTab("pattern")}>패턴</button>
         <button className={tab === "kibo" ? "on" : ""} onClick={() => setTab("kibo")}>기보</button>
         <button className={tab === "session" ? "on" : ""} onClick={() => setTab("session")}>세션</button>
@@ -43,13 +43,13 @@ export function Analyze({
         <>
           <div className="insight" style={{ marginTop: 12 }}>
             <div className="row"><span className="idx">00</span><b>내 패턴</b></div>
-            <p className="kicker">핸드를 치면 노란/빨간 회고가 여기 쌓입니다. 처음부터 열려 있습니다.</p>
+            <p className="kicker">노란/빨간 회고가 여기 모입니다.</p>
             {hs && (
               <div className="kicker" style={{ marginTop: 6 }}>
                 최근 세션 VPIP {vpip}% · PFR {pfr}% · 착취 놓침 {last?.missedExploits ?? 0}
               </div>
             )}
-            {habits.length === 0 && <p className="kicker">아직 패턴이 없습니다. 테이블에서 몇 핸드만 치면 생깁니다.</p>}
+            {habits.length === 0 && <p className="kicker">아직 없어요. 핸드 몇 개만 치면 생깁니다.</p>}
             {habits.map((h) => (
               <div key={h.tag} className="task-row">
                 <div style={{ flex: 1 }}>
@@ -70,7 +70,7 @@ export function Analyze({
         <div className="card" style={{ marginTop: 12 }}>
           <div className="row"><span className="idx">01</span><b>기보</b></div>
           <p className="kicker">끝난 핸드가 시간순으로 남습니다.</p>
-          {hands.length === 0 && <p className="kicker">아직 기보가 없습니다. 한 핸드만 끝내면 여기에 뜹니다.</p>}
+          {hands.length === 0 && <p className="kicker">아직 없어요. 핸드 하나 끝내면 뜹니다.</p>}
           {hands.slice(0, 80).map((h) => (
             <div key={String(h.at) + "-" + h.handNumber} className="task-row">
               <div style={{ flex: 1 }}>

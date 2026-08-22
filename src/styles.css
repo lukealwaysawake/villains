@@ -1067,3 +1067,26 @@ input[type="range"] { width: 100%; accent-color: var(--gold); margin-top: 8px; }
     font-size: 22px;
   }
 }
+
+/* ux pass */
+.on-title { margin-top: 28px; font-size: 40px; line-height: 1.05; letter-spacing: -0.03em; }
+.on-body { margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding-bottom: 12px; }
+.screen:has(.on-title) { justify-content: flex-start; }
+.seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: #12141a;
+  border: 1px solid var(--line);
+  margin-top: 10px;
+}
+.seg button {
+  min-height: 36px;
+  border-radius: 11px;
+  font-size: 13px;
+  background: transparent;
+}
+.seg button.on { background: #1f222b; color: var(--gold-2); }
+.nav button { min-height: 62px; }
