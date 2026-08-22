@@ -386,6 +386,3 @@ export function TableScreen({
     </section>
   );
 }
-/section>
-  );
-}
