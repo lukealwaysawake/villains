@@ -480,6 +480,8 @@ assert(decision.candidates.length >= 3, "decision review should compare multiple
 assert(decision.lossBb > 0, "folding aces should produce a non-zero EV loss");
 assert(decision.played.label === "폴드", "played action should use a localized label");
 assert(!!decision.baselineBest && !!decision.baselinePlayed && decision.baselineCandidates?.length === decision.candidates.length, "decision review should preserve separate baseline and exploit candidate sets");
+assert((decision.rawLossBb ?? 0) >= decision.lossBb && (decision.uncertaintyBb ?? -1) >= 0, "decision loss should conservatively subtract paired-sample uncertainty");
+assert((decision.baselineRawLossBb ?? 0) >= (decision.baselineLossBb ?? 0) && (decision.baselineUncertaintyBb ?? -1) >= 0, "baseline loss should preserve raw gap and uncertainty provenance");
 
 const greenReview: ReviewCard = {
   ...pricedReview,

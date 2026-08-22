@@ -27,6 +27,9 @@ import { Analyze } from "./Analyze";
 import { SessionRecap } from "./SessionRecap";
 import { CreateRoom } from "./CreateRoom";
 import { useAnalysisCoordinator } from "../review/coordinator";
+import { primaryDecisionAnalysis } from "../review/coaching";
+import { habitStatus } from "../review/learning";
+import { DecisionCoachCard } from "./DecisionCoachCard";
 
 function practiceLineup(primaryId: string): string[] {
   const fillers = ["uncleho", "nitlee", "stationpark", "foldjeong", "weekend", "bulldozer"];
@@ -239,6 +242,16 @@ function Home({
   const live = canResume(session);
   const lineup = (lastRoom?.villainIds.length ? lastRoom.villainIds : ["uncleho", "nitlee", "stationpark"]).slice(0, 3);
   const focus = useMemo(() => {
+    const learningPattern = Object.values(profile.learning.patterns)
+      .map((pattern) => ({ pattern, status: habitStatus(pattern) }))
+      .filter(({ status }) => status === "confirmed" || status === "signal" || status === "improving")
+      .sort((left, right) => right.pattern.totalLossBb - left.pattern.totalLossBb)[0];
+    if (learningPattern) {
+      const analysis = [...profile.learning.recentDecisions]
+        .reverse()
+        .find((decision) => decision.patternId === learningPattern.pattern.patternId);
+      if (analysis) return `${analysis.guidance.nextRule.condition} ${analysis.guidance.nextRule.action}`;
+    }
     const worst = Object.entries(profile.mastery)
       .filter(([, m]) => m.handsPlayed >= 20)
       .sort((a, b) => a[1].bb / a[1].handsPlayed - b[1].bb / b[1].handsPlayed)[0];
@@ -441,15 +454,22 @@ function Reviews({ profile, setProfile, go }: { profile: Profile; setProfile: (p
       </section>
     );
   }
+  const analysis = primaryDecisionAnalysis(cur.analyses ?? []);
   return (
     <section className="screen no-nav">
       <PageHeader eyebrow={`REVIEW ${i + 1}/${list.length}`} title="결정 복기" onBack={() => go("analyze")} backLabel="기록으로 돌아가기" titleAs="span" />
-      <h1 className="review-page-title">{cur.headline}</h1>
-      <p className="kicker">{cur.body}</p>
-      <div className="card">
-        <div className="row"><span>{cur.statLabel}</span><b>{cur.statValue}</b></div>
-        <div className="row"><span>손실</span><b className="bad">{signedBb(-cur.totalLossBb, cur.bigBlindDollars)}</b></div>
-      </div>
+      {analysis ? (
+        <DecisionCoachCard analysis={analysis} status={cur.analysisStatus ?? "final"} />
+      ) : (
+        <>
+          <h1 className="review-page-title">{cur.headline}</h1>
+          <p className="kicker">{cur.body}</p>
+          <div className="card">
+            <div className="row"><span>{cur.statLabel}</span><b>{cur.statValue}</b></div>
+            <div className="row"><span>손실</span><b className="bad">{signedBb(-cur.totalLossBb, cur.bigBlindDollars)}</b></div>
+          </div>
+        </>
+      )}
       <div className="button-pair review-page-actions">
         <button
           className="btn"

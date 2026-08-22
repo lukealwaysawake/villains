@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { applyAction, cloneState, continueHand, legalActions, positionFor, sizingPresets, type TableState } from "../engine/game";
 import { analyzeHand, type ReviewCard } from "../review/analyze";
 import type { DecisionSnapshot } from "../review/ev";
-import { buildReviewAnalysis } from "../review/coaching";
+import { buildReviewAnalysis, primaryDecisionAnalysis } from "../review/coaching";
 import { canContinueSession, commitHand, dealNext, enqueueAnalysisJob, persistLive, type Profile, type Session } from "../state/store";
 import { decideVillain, delayFor } from "../villains/policy";
 import { maybeSpeak, onHandEnd, sessionStartLines, updateHeroRead, type SpeechEvent } from "../villains/runtime";
@@ -10,6 +10,7 @@ import { VILLAIN_BY_ID } from "../villains/catalog";
 import { FeltTable } from "./FeltTable";
 import { bb, signedBb } from "./bits";
 import { coachLine } from "./coach";
+import { DecisionCoachCard } from "./DecisionCoachCard";
 
 export function TableScreen({
   profile,
@@ -241,6 +242,7 @@ export function TableScreen({
   const tutorialOn = session.tutorial && session.handsPlayed < 30;
   const coach = table && (session.coachOn || tutorialOn) && heroTurn ? coachLine(table) : null;
   const hasDeepReview = !!badge && !!(badge.gtoLine || badge.exploitLine || badge.candidates?.length || badge.analyses?.length);
+  const primaryAnalysis = badge ? primaryDecisionAnalysis(badge.analyses ?? []) : undefined;
   const actingName = table?.toAct === null || table?.toAct === undefined
     ? null
     : table.players[table.toAct]?.id === "hero"
@@ -396,12 +398,16 @@ export function TableScreen({
             <div className="sheet-handle" aria-hidden="true" />
             <div className="review-scroll">
             <div className="row"><span className="eyebrow">{deep ? "상세 복기" : "핸드 복기"}</span><span className="muted">{badge.statValue}</span></div>
-            <div className={`reco tight ${badge.severity}`}>
-              <div className="review-kicker"><i className={`dot ${badge.severity}`} aria-hidden="true" />{badge.severity === "green" ? "좋은 결정" : badge.severity === "yellow" ? "확인할 결정" : "큰 손실 결정"}</div>
-              <b>{badge.headline}</b>
-              <p>{badge.body}</p>
-              <div className="conf">{badge.totalLossBb > 0 ? `손실 ${signedBb(-badge.totalLossBb, session.room?.bb).replace("−", "")}` : "추정 손실 없음"}</div>
-            </div>
+            {primaryAnalysis ? (
+              <DecisionCoachCard analysis={primaryAnalysis} status={badge.analysisStatus ?? "final"} compact={!deep} />
+            ) : (
+              <div className={`reco tight ${badge.severity}`}>
+                <div className="review-kicker"><i className={`dot ${badge.severity}`} aria-hidden="true" />{badge.severity === "green" ? "좋은 결정" : badge.severity === "yellow" ? "확인할 결정" : "큰 손실 결정"}</div>
+                <b>{badge.headline}</b>
+                <p>{badge.body}</p>
+                <div className="conf">{badge.totalLossBb > 0 ? `손실 ${signedBb(-badge.totalLossBb, session.room?.bb).replace("−", "")}` : "추정 손실 없음"}</div>
+              </div>
+            )}
             {badge.streets && badge.streets.length > 0 && (
               <div className="street-rows">
                 {badge.streets.map((s) => (

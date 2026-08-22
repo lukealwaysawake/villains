@@ -2,7 +2,7 @@ import { cardKey, makeDeck } from "../engine/cards";
 import { applyAction, cloneState, legalActions, type TableState } from "../engine/game";
 import { readSpot } from "../engine/handRank";
 import { Rng } from "../engine/rng";
-import { chipsToBb, type ActionType, type Street } from "../engine/types";
+import { type ActionType, type Street } from "../engine/types";
 import { decideVillain, type PolicyMode } from "../villains/policy";
 import { createRuntime, type VillainRuntime } from "../villains/types";
 
@@ -11,6 +11,7 @@ export interface CandidateEv {
   raiseTo: number;
   label: string;
   ev: number;
+  uncertaintyBb?: number;
 }
 
 export interface DecisionEv {
@@ -26,6 +27,10 @@ export interface DecisionEv {
   baselineBest?: CandidateEv;
   baselinePlayed?: CandidateEv;
   baselineLossBb?: number;
+  rawLossBb?: number;
+  uncertaintyBb?: number;
+  baselineRawLossBb?: number;
+  baselineUncertaintyBb?: number;
 }
 
 function dollarsFromChips(chips: number): string {
@@ -105,15 +110,48 @@ export function evForAction(
   tell = 0.78,
   mode: PolicyMode = "exploit",
 ): number {
-  let sum = 0;
+  return evStatsForAction(state, type, raiseTo, runtimes, samples, tell, mode).mean;
+}
+
+interface EvStats {
+  mean: number;
+  standardError: number;
+  outcomes: number[];
+}
+
+function average(values: readonly number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+}
+
+function standardError(values: readonly number[]): number {
+  if (values.length < 2) return 0;
+  const mean = average(values);
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1);
+  return Math.sqrt(variance / values.length);
+}
+
+function evStatsForAction(
+  state: TableState,
+  type: ActionType,
+  raiseTo: number,
+  runtimes: Record<string, VillainRuntime>,
+  samples: number,
+  tell: number,
+  mode: PolicyMode,
+): EvStats {
   const count = Math.max(1, samples);
+  const outcomes: number[] = [];
   for (let i = 0; i < count; i++) {
     const sampled = resampleHiddenCards(state, i);
     const branched = applyAction(sampled, type, raiseTo);
     const done = finish(branched, runtimes, tell, mode);
-    sum += done.result?.heroDelta ?? 0;
+    outcomes.push((done.result?.heroDelta ?? 0) / Math.max(1, state.bb));
   }
-  return chipsToBb(sum / count, state.bb);
+  return {
+    mean: Math.round(average(outcomes) * 10) / 10,
+    standardError: Math.round(standardError(outcomes) * 100) / 100,
+    outcomes,
+  };
 }
 
 function actionLabel(type: ActionType, raiseTo: number): string {
@@ -144,10 +182,11 @@ export function candidateList(state: TableState): { type: ActionType; raiseTo: n
       sizes.push({ label: "올인", to: legal.maxRaiseTo });
     }
     const seen = new Set<number>();
+    const verb = legal.callAmount > 0 ? "레이즈" : "벳";
     for (const s of sizes) {
       if (seen.has(s.to)) continue;
       seen.add(s.to);
-      out.push({ type: legal.callAmount > 0 ? "raise" : "bet", raiseTo: s.to, label: `${s.label} ${dollarsFromChips(s.to)}` });
+      out.push({ type: legal.callAmount > 0 ? "raise" : "bet", raiseTo: s.to, label: `${verb} ${s.label} ${dollarsFromChips(s.to)}` });
     }
   }
   return out;
@@ -193,22 +232,41 @@ export function scoreDecision(
   const cands = candidateList(snapshot);
   const sized = heroType === "bet" || heroType === "raise" || heroType === "allin";
   const scoreMode = (mode: PolicyMode) => {
-    const scored: CandidateEv[] = cands.map((candidate) => ({
-      action: candidate.type,
-      raiseTo: candidate.raiseTo,
-      label: candidate.label,
-      ev: evForAction(snapshot, candidate.type, candidate.raiseTo, runtimes, samples, tell, mode),
-    }));
+    const outcomeMap = new Map<string, number[]>();
+    const keyFor = (action: ActionType, raiseTo: number) => `${action}:${raiseTo}`;
+    const scored: CandidateEv[] = cands.map((candidate) => {
+      const stats = evStatsForAction(snapshot, candidate.type, candidate.raiseTo, runtimes, samples, tell, mode);
+      outcomeMap.set(keyFor(candidate.type, candidate.raiseTo), stats.outcomes);
+      return {
+        action: candidate.type,
+        raiseTo: candidate.raiseTo,
+        label: candidate.label,
+        ev: stats.mean,
+        uncertaintyBb: stats.standardError,
+      };
+    });
     const played = scored.find((candidate) => candidate.action === heroType && (!sized || candidate.raiseTo === heroRaiseTo)) ?? {
-      action: heroType,
-      raiseTo: heroRaiseTo,
-      label: actionLabel(heroType, heroRaiseTo),
-      ev: evForAction(snapshot, heroType, heroRaiseTo, runtimes, samples, tell, mode),
+      ...(() => {
+        const stats = evStatsForAction(snapshot, heroType, heroRaiseTo, runtimes, samples, tell, mode);
+        outcomeMap.set(keyFor(heroType, heroRaiseTo), stats.outcomes);
+        return {
+          action: heroType,
+          raiseTo: heroRaiseTo,
+          label: actionLabel(heroType, heroRaiseTo),
+          ev: stats.mean,
+          uncertaintyBb: stats.standardError,
+        };
+      })(),
     };
     if (!scored.includes(played)) scored.push(played);
     const best = scored.reduce((a, b) => (b.ev > a.ev ? b : a), scored[0] ?? played);
-    const lossBb = Math.max(0, Math.round((best.ev - played.ev) * 10) / 10);
-    return { candidates: scored.sort((a, b) => b.ev - a.ev), best, played, lossBb };
+    const bestOutcomes = outcomeMap.get(keyFor(best.action, best.raiseTo)) ?? [];
+    const playedOutcomes = outcomeMap.get(keyFor(played.action, played.raiseTo)) ?? [];
+    const pairedDiffs = bestOutcomes.map((value, index) => value - (playedOutcomes[index] ?? value));
+    const rawLossBb = Math.max(0, Math.round(average(pairedDiffs) * 10) / 10);
+    const uncertaintyBb = Math.round(standardError(pairedDiffs) * 100) / 100;
+    const lossBb = Math.max(0, Math.round((rawLossBb - 1.28 * uncertaintyBb) * 10) / 10);
+    return { candidates: scored.sort((a, b) => b.ev - a.ev), best, played, lossBb, rawLossBb, uncertaintyBb };
   };
   const exploit = scoreMode("exploit");
   const baseline = scoreMode("baseline");
@@ -220,11 +278,15 @@ export function scoreDecision(
     best: exploit.best,
     played: exploit.played,
     lossBb: exploit.lossBb,
+    rawLossBb: exploit.rawLossBb,
+    uncertaintyBb: exploit.uncertaintyBb,
     samples: Math.max(1, samples),
     baselineCandidates: baseline.candidates,
     baselineBest: baseline.best,
     baselinePlayed: baseline.played,
     baselineLossBb: baseline.lossBb,
+    baselineRawLossBb: baseline.rawLossBb,
+    baselineUncertaintyBb: baseline.uncertaintyBb,
   };
 }
 

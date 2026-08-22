@@ -119,10 +119,13 @@ function generalPattern(skill: SkillKey, street: Street, played: DecisionChoice,
 
 function evidenceForEv(score: DecisionEv | undefined, played: DecisionChoice, best: DecisionChoice, lossBb: number): string[] {
   if (!score) return ["빠른 규칙 분석을 마쳤고 후보 EV 비교는 백그라운드에서 계산 중입니다."];
-  if (lossBb <= 0.1) return [`${score.samples}개 동일 표본에서 ${played.label}이 비교 후보 중 최선에 가까웠습니다.`];
+  if (lossBb <= 0.1) return [`${score.samples}개 동일 표본에서 내 선택과 최고 후보의 차이가 0.1bb 이내였습니다.`];
+  const uncertainty = score.baselineUncertaintyBb ?? score.uncertaintyBb ?? 0;
   return [
     `${score.samples}개 동일 표본에서 ${played.label} ${played.evBb >= 0 ? "+" : ""}${played.evBb.toFixed(1)}bb, ${best.label} ${best.evBb >= 0 ? "+" : ""}${best.evBb.toFixed(1)}bb였습니다.`,
-    `결과가 아니라 선택 시점의 추정 EV 차이 ${lossBb.toFixed(1)}bb로 평가했습니다.`,
+    uncertainty > 0
+      ? `표본 변동 ${uncertainty.toFixed(1)}bb를 보수적으로 제외한 EV 손실 ${lossBb.toFixed(1)}bb로 평가했습니다.`
+      : `결과가 아니라 선택 시점의 추정 EV 차이 ${lossBb.toFixed(1)}bb로 평가했습니다.`,
   ];
 }
 
@@ -167,12 +170,17 @@ export function buildDecisionAnalyses(input: BuildDecisionAnalysesInput): Decisi
       gapBb: Math.max(baselineLossBb, exploitLossBb ?? 0),
       ruleAgreement,
     });
-    const confidence = capConfidence(rawConfidence, rule?.confidenceCap);
+    const baselineUncertaintyBb = score?.baselineUncertaintyBb;
+    const noiseCap: ConfidenceLevel | undefined = baselineUncertaintyBb !== undefined
+      && baselineUncertaintyBb > Math.max(0.25, (score?.baselineRawLossBb ?? baselineLossBb) * 0.5)
+      ? "low"
+      : undefined;
+    const confidence = capConfidence(capConfidence(rawConfidence, rule?.confidenceCap), noiseCap);
     const patternId = rule?.countsAsOpportunity ? rule.ruleId : generalPattern(skill, street, played, baselineBest);
     const judgment = rule?.judgment
       ?? (baselineLossBb <= 0.1
-        ? `${STREET_KO[street]} ${played.label}은 최선에 가까웠습니다.`
-        : `${STREET_KO[street]}에서 ${baselineBest.label}이 더 나았습니다.`);
+        ? `${STREET_KO[street]} 선택: ${played.label} · 최선에 가까웠습니다.`
+        : `${STREET_KO[street]} 선택: ${baselineBest.label} 쪽이 더 나았습니다.`);
     const evidence = rule
       ? [...rule.evidence, ...evidenceForEv(score, played, baselineBest, baselineLossBb)]
       : evidenceForEv(score, played, baselineBest, baselineLossBb);
@@ -181,7 +189,7 @@ export function buildDecisionAnalyses(input: BuildDecisionAnalysesInput): Decisi
       evidence,
       principle: rule?.principle ?? SKILL_PRINCIPLE[skill],
       condition: rule?.condition ?? `비슷한 ${STREET_KO[street]} 상황이 다시 오면`,
-      action: rule?.action ?? `${baselineBest.label}을 우선 후보로 두세요.`,
+      action: rule?.action ?? `먼저 ${baselineBest.label} 선택을 검토하세요.`,
       exception: rule?.exception ?? (confidence === "low" ? "EV 차이가 작거나 표본이 적으면 혼합 전략으로 봅니다." : undefined),
       targetOpportunities: 10,
       targetMaxMisses: 2,
@@ -216,6 +224,8 @@ export function buildDecisionAnalyses(input: BuildDecisionAnalysesInput): Decisi
       baselineBest,
       ...(exploitBest ? { exploitBest } : {}),
       baselineLossBb,
+      ...(score?.baselineRawLossBb === undefined ? {} : { baselineRawLossBb: score.baselineRawLossBb }),
+      ...(baselineUncertaintyBb === undefined ? {} : { baselineUncertaintyBb }),
       ...(exploitLossBb === undefined ? {} : { exploitLossBb }),
       fundamentalsScore,
       ...(exploitScore === undefined ? {} : { exploitScore }),
@@ -280,4 +290,3 @@ export function buildReviewAnalysis(input: BuildDecisionAnalysesInput & { review
   const analyses = buildDecisionAnalyses(input);
   return attachDecisionAnalyses(input.review, analyses, input.status, input.scores);
 }
-

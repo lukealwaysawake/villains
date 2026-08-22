@@ -43,7 +43,11 @@ export function scoreDecisionsAsync(job: {
     const timer = setTimeout(() => {
       pending.delete(id);
       resolve(null);
-    }, 6000);
+      if (worker === w) {
+        w.terminate();
+        worker = null;
+      }
+    }, 12000);
     pending.set(id, { resolve, timer });
     w.postMessage({
       id,

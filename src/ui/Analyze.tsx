@@ -2,9 +2,29 @@ import { useState } from "react";
 import { VILLAIN_BY_ID } from "../villains/catalog";
 import { Segmented, signedBb, type Screen } from "./bits";
 import { formatSignedDollars, sumKnownDollars } from "./money";
-import type { Profile } from "../state/store";
+import { skillScore, type Profile } from "../state/store";
+import { habitStatus, scoreLabel, summarizeSession as summarizeCoachingSession, type HabitStatus, type SkillKey } from "../review/learning";
 
 type Tab = "pattern" | "kibo" | "session";
+
+const SKILL_LABEL: Record<SkillKey, string> = {
+  preflop: "프리플랍",
+  position: "포지션",
+  pot_odds: "팟 오즈",
+  aggression: "공격 빈도",
+  sizing: "사이징",
+  street_plan: "스트리트 계획",
+  stack_awareness: "스택 인식",
+  opponent_exploit: "상대 맞춤",
+};
+
+const HABIT_LABEL: Record<HabitStatus, string> = {
+  observing: "관찰 중",
+  signal: "징후",
+  confirmed: "확정",
+  improving: "개선 중",
+  resolved: "해결",
+};
 
 export function Analyze({
   profile,
@@ -23,6 +43,26 @@ export function Analyze({
   const hs = last?.heroStats;
   const vpip = hs && hs.hands ? Math.round((hs.vpip / hs.hands) * 100) : 0;
   const pfr = hs && hs.hands ? Math.round((hs.pfr / hs.hands) * 100) : 0;
+  const recentDecisions = profile.learning.recentDecisions ?? [];
+  const coaching = summarizeCoachingSession(recentDecisions);
+  const learningPatterns = Object.values(profile.learning.patterns)
+    .map((pattern) => ({
+      pattern,
+      status: habitStatus(pattern),
+      analysis: [...recentDecisions].reverse().find((analysis) => analysis.patternId === pattern.patternId),
+    }))
+    .sort((left, right) => {
+      const weight: Record<HabitStatus, number> = { confirmed: 5, signal: 4, improving: 3, observing: 2, resolved: 1 };
+      return weight[right.status] - weight[left.status] || right.pattern.totalLossBb - left.pattern.totalLossBb;
+    })
+    .slice(0, 12);
+  const primaryPattern = learningPatterns.find(({ status, analysis }) => !!analysis && (status === "confirmed" || status === "signal" || status === "improving"));
+  const skills = (Object.entries(SKILL_LABEL) as Array<[SkillKey, string]>).map(([skill, label]) => ({
+    skill,
+    label,
+    aggregate: profile.learning.skills[skill],
+    score: skillScore(profile.learning.skills[skill]),
+  }));
 
   return (
     <section className="screen">
@@ -50,34 +90,58 @@ export function Analyze({
       />
       {tab === "pattern" && (
         <>
-          <div className="insight">
-            <div className="row"><span className="idx">00</span><b>내 패턴</b></div>
-            <p className="kicker">노란/빨간 회고가 여기 모입니다.</p>
+          <div className="coaching-overview insight">
+            <div className="row"><span className="idx">00</span><b>장기 코칭</b></div>
+            {coaching.hasData ? (
+              <div className="coaching-overview-score">
+                <strong>{Math.round(coaching.overallScore)}</strong>
+                <span><b>{scoreLabel(coaching.overallScore)}</b><small>분석된 결정 {coaching.decisionCount}개</small></span>
+              </div>
+            ) : <p className="kicker">아직 분석된 결정이 없습니다.</p>}
             {hs && (
               <div className="kicker" style={{ marginTop: 6 }}>
                 최근 세션 VPIP {vpip}% · PFR {pfr}% · 착취 놓침 {last?.missedExploits ?? 0}
               </div>
             )}
-            {habits.length === 0 && (
-              <div className="empty">
-                <img src="/brand/mark.jpg" alt="" />
-                <p className="kicker">아직 없어요. 핸드 몇 개만 치면 생깁니다.</p>
-              </div>
-            )}
-            {habits.map((h) => (
-              <div key={h.tag} className="task-row">
-                <div style={{ flex: 1 }}>
-                  <b>{h.tag}</b>
-                  <div className="kicker">
-                    {h.count}회 · 확인 손실 {formatSignedDollars(h.totalLossDollars === undefined ? undefined : -h.totalLossDollars)}
-                    {h.villains.length ? " · " + h.villains.map((id) => VILLAIN_BY_ID[id]?.name ?? id).join(", ") : ""}
-                  </div>
-                  {h.examples[0] && <div className="kicker">{h.examples[0].body}</div>}
-                </div>
-                <span className="status">{h.count >= 2 ? "습관" : "1회"}</span>
+          </div>
+          {primaryPattern?.analysis && (
+            <div className="next-focus card">
+              <span className="eyebrow">다음 테이블 한 가지</span>
+              <b>{primaryPattern.analysis.guidance.nextRule.condition}</b>
+              <p>{primaryPattern.analysis.guidance.nextRule.action}</p>
+              <small>{HABIT_LABEL[primaryPattern.status]} · {primaryPattern.pattern.misses}/{primaryPattern.pattern.opportunities} 놓침 · {primaryPattern.pattern.totalLossBb.toFixed(1)}bb</small>
+            </div>
+          )}
+          <div className="card skill-card">
+            <div className="row"><span className="idx">01</span><b>8개 기술 영역</b></div>
+            {skills.map(({ skill, label, aggregate, score }) => (
+              <div key={skill} className="skill-row">
+                <span><b>{label}</b><small>{aggregate ? `기회 ${aggregate.opportunities}회 · 놓침 ${aggregate.misses}회` : "표본 없음"}</small></span>
+                {score === undefined ? <em>관찰 중</em> : <em className={score < 65 ? "bad" : score < 80 ? "warn" : "good"}>{score}점</em>}
+                <div className="skill-meter" role="progressbar" aria-label={`${label} ${score === undefined ? "관찰 중" : `${score}점`}`} aria-valuemin={0} aria-valuemax={100} {...(score === undefined ? {} : { "aria-valuenow": score })}><i style={{ width: `${score ?? 0}%` }} /></div>
               </div>
             ))}
           </div>
+          <div className="card pattern-card">
+            <div className="row"><span className="idx">02</span><b>기회 기반 패턴</b></div>
+            <p className="kicker">한 번의 결과가 아니라 같은 기회에서 반복되는 선택으로 판단합니다.</p>
+            {learningPatterns.length === 0 && <div className="empty"><img src="/brand/mark.jpg" alt="" /><p className="kicker">같은 상황이 3번 이상 쌓이면 징후를 알려드려요.</p></div>}
+            {learningPatterns.map(({ pattern, status, analysis }) => (
+              <div key={pattern.patternId} className="pattern-row">
+                <div className="row"><b>{analysis?.guidance.judgment ?? SKILL_LABEL[pattern.skill]}</b><span className={`habit-${status}`}>{HABIT_LABEL[status]}</span></div>
+                <p>{pattern.opportunities}번 중 {pattern.misses}번 놓침 · 누적 {pattern.totalLossBb.toFixed(1)}bb</p>
+                {analysis && <small>{analysis.guidance.nextRule.condition} {analysis.guidance.nextRule.action}</small>}
+              </div>
+            ))}
+          </div>
+          {habits.length > 0 && (
+            <details className="card legacy-patterns">
+              <summary>이전 버전 기록 {habits.length}개 <span>과거 참고 · 낮은 신뢰도</span></summary>
+              {habits.map((habit) => (
+                <div key={habit.tag} className="task-row"><div style={{ flex: 1 }}><b>{habit.tag}</b><div className="kicker">{habit.count}회 · 확인 손실 {formatSignedDollars(habit.totalLossDollars === undefined ? undefined : -habit.totalLossDollars)}</div></div></div>
+              ))}
+            </details>
+          )}
         </>
       )}
       {tab === "kibo" && (

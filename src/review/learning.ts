@@ -86,6 +86,8 @@ export interface DecisionAnalysis {
   baselineBest: DecisionChoice;
   exploitBest?: DecisionChoice;
   baselineLossBb: number;
+  baselineRawLossBb?: number;
+  baselineUncertaintyBb?: number;
   exploitLossBb?: number;
   fundamentalsScore: number;
   exploitScore?: number;

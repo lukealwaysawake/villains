@@ -27,7 +27,7 @@ export function useAnalysisCoordinator({
     const job = profileRef.current.learning.pendingJobs[0];
     if (!job || activeJobId.current === job.id) return;
     activeJobId.current = job.id;
-    const sampleCount = Math.max(12, Math.min(20, Math.floor(80 / Math.max(1, job.decisions.length))));
+    const sampleCount = Math.max(24, Math.min(32, Math.floor(128 / Math.max(1, job.decisions.length))));
 
     void scoreDecisionsAsync({
       decisions: job.decisions,
@@ -64,4 +64,3 @@ export function useAnalysisCoordinator({
     });
   }, [jobSignature, setProfile, setSession]);
 }
-
