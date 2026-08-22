@@ -22,7 +22,7 @@ export interface RoomConfig {
 export function defaultRoom(partial: Partial<RoomConfig> = {}): RoomConfig {
   return {
     name: "캐시 테이블",
-    seats: 6,
+    seats: 4,
     buyInBb: 100,
     sb: 0.5,
     bb: 1,

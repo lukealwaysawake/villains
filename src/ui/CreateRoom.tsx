@@ -37,7 +37,7 @@ export function CreateRoom({
   const [buyInLimit, setBuyInLimit] = useState(base.buyInLimit);
   const [autoRebuy, setAutoRebuy] = useState(base.autoRebuy);
   const [speed, setSpeed] = useState(base.speed);
-  const [picks, setPicks] = useState<string[]>(base.villainIds ?? []);
+  const [picks, setPicks] = useState<string[]>(base.villainIds ?? ["uncleho", "nitlee", "stationpark"].slice(0, (base.seats || 4) - 1));
   const need = seats - 1;
   const buyInBb = Math.max(20, Math.round(startStack / bb)) as 50 | 100 | 200;
 
