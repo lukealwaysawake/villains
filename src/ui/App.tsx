@@ -9,7 +9,6 @@ import {
   loadProfile,
   masteryPct,
   saveProfile,
-  sessionPatterns,
   archiveSession,
   canShowHint,
   saveCombo,
@@ -26,6 +25,7 @@ import { roundRobin } from "../engine/sim";
 import { Avatar, Nav, PlayingCard, ChipStack, Stars, signedBb } from "./bits";
 import { TableScreen } from "./TableScreen";
 import { Analyze } from "./Analyze";
+import { SessionRecap } from "./SessionRecap";
 import { CreateRoom } from "./CreateRoom";
 
 export function App() {
@@ -90,7 +90,7 @@ export function App() {
           }}
         />
       )}
-      {screen === "report" && session && <Report session={session} profile={profile} go={go} />}
+      {screen === "report" && session && <SessionRecap session={session} profile={profile} go={go} />}
       {screen === "dex" && (
         <Dex
           profile={profile}
@@ -309,63 +309,6 @@ function Lobby({
           </button>
         ))}
       </div>
-    </section>
-  );
-}
-
-function Report({ session, profile, go }: { session: Session; profile: Profile; go: (s: Screen) => void }) {
-  const patterns = sessionPatterns(session);
-  const vpip = session.heroStats.hands ? Math.round((session.heroStats.vpip / session.heroStats.hands) * 100) : 0;
-  const pfr = session.heroStats.hands ? Math.round((session.heroStats.pfr / session.heroStats.hands) * 100) : 0;
-  return (
-    <section className="screen">
-      <div className="eyebrow">세션 리포트</div>
-      <h1 style={{ margin: "8px 0 12px" }}>{signedBb(session.bbDelta)}</h1>
-      <div className="grid3">
-        <div className="card"><div className="muted">핸드</div><b>{session.handsPlayed}</b></div>
-        <div className="card"><div className="muted">VPIP</div><b>{vpip}</b></div>
-        <div className="card"><div className="muted">PFR</div><b>{pfr}</b></div>
-      </div>
-      <div className="card">
-        <b>빌런별</b>
-        {session.villainIds.map((id) => {
-          const m = profile.mastery[id];
-          return (
-            <div key={id} className="list-item">
-              <Avatar id={id} />
-              <div style={{ flex: 1 }}>
-                <div className="row"><b>{VILLAIN_BY_ID[id].name}</b><span>{masteryPct(m)}%</span></div>
-                <div className="bar"><i style={{ width: `${masteryPct(m)}%` }} /></div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {isPro(profile) && <div className="card">
-        <div className="row"><span className="idx">02</span><b>반복 실수</b></div>
-        {patterns.length === 0 && <p className="kicker">아직 반복 패턴이 없습니다.</p>}
-        {patterns.map((p) => (
-          <div key={p.tag} className="task-row">
-            <div style={{ flex: 1 }}>
-              <b>{p.tag}</b>
-              <div className="kicker">{p.count}회 · -{p.loss.toFixed(1)}bb</div>
-            </div>
-            <span className="status">TRACE</span>
-          </div>
-        ))}
-      </div>}
-      <p className="kicker">놓친 착취 {session.missedExploits ?? 0}개 · 놓친 리뷰 {profile.reviewQueue.filter((r) => !r.viewed).length}개</p>
-      {session.fairness && (
-        <div className="card">
-          <div className="row"><span className="idx">SEED</span><b>시드 공개</b></div>
-          <p className="kicker">hash {session.fairness.seedServerHash}</p>
-          <p className="kicker">server {session.fairness.seedServer}</p>
-          <p className="kicker">client {session.seedClient}</p>
-        </div>
-      )}
-      <button className="btn launch wide" onClick={() => go("home")}>홈으로</button>
-      <button className="btn wide" style={{ marginTop: 8 }} onClick={() => go("reviews")}>리뷰 몰아보기</button>
-      <button className="btn glass wide" style={{ marginTop: 8 }} onClick={() => go("analyze")}>플레이 기록</button>
     </section>
   );
 }

@@ -1,0 +1,97 @@
+import { sessionPatterns, type Profile, type Session } from "../state/store";
+import { VILLAIN_BY_ID } from "../villains/catalog";
+import { Avatar, signedBb, type Screen } from "./bits";
+
+export function SessionRecap({
+  session,
+  profile,
+  go,
+}: {
+  session: Session;
+  profile: Profile;
+  go: (s: Screen) => void;
+}) {
+  const hs = session.heroStats;
+  const hands = Math.max(1, hs.hands);
+  const vpip = Math.round((hs.vpip / hands) * 100);
+  const pfr = Math.round((hs.pfr / hands) * 100);
+  const three = hs.threeBetOpp ? Math.round((hs.threeBet / hs.threeBetOpp) * 100) : 0;
+  const wtsd = hs.sawFlop ? Math.round((hs.wtsd / hs.sawFlop) * 100) : 0;
+  const reviews = [...(session.reviews ?? [])].reverse();
+  const misses = reviews.filter((r) => r.severity !== "green");
+  const patterns = sessionPatterns(session);
+  const kibos = (profile.handLog ?? []).filter((h) => h.sessionId === session.id);
+
+  return (
+    <section className="screen recap">
+      <div className="eyebrow">전체 복기</div>
+      <h1 className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</h1>
+      <p className="kicker">
+        {session.handsPlayed}핸드 · {session.room ? `$${session.room.sb}/${session.room.bb}` : "캐시"} · {session.villainIds.map((id) => VILLAIN_BY_ID[id]?.name).join(" · ")}
+      </p>
+      <div className="grid3" style={{ marginTop: 10 }}>
+        <div className="card"><div className="muted">VPIP</div><b>{vpip}%</b></div>
+        <div className="card"><div className="muted">PFR</div><b>{pfr}%</b></div>
+        <div className="card"><div className="muted">3B</div><b>{three}%</b></div>
+      </div>
+      <div className="grid3">
+        <div className="card"><div className="muted">WTSD</div><b>{wtsd}%</b></div>
+        <div className="card"><div className="muted">착취 놓침</div><b>{session.missedExploits ?? 0}</b></div>
+        <div className="card"><div className="muted">실수 핸드</div><b>{misses.length}</b></div>
+      </div>
+
+      <div className="insight" style={{ marginTop: 12 }}>
+        <div className="row"><span className="idx">01</span><b>이번 세션 패턴</b></div>
+        {patterns.length === 0 && <p className="kicker">반복된 실수는 없습니다.</p>}
+        {patterns.map((p) => (
+          <div key={p.tag} className="task-row">
+            <div style={{ flex: 1 }}>
+              <b>{p.tag}</b>
+              <div className="kicker">{p.count}회 · -{p.loss.toFixed(1)}bb</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="card">
+        <div className="row"><span className="idx">02</span><b>핸드 복기</b></div>
+        {reviews.length === 0 && <p className="kicker">이 세션에 끝난 핸드가 없습니다.</p>}
+        {reviews.map((r) => (
+          <div key={r.id} className="task-row">
+            <i className={`dot ${r.severity}`} />
+            <div style={{ flex: 1 }}>
+              <b>#{r.handNumber} {r.headline}</b>
+              <div className="kicker">{r.body}</div>
+            </div>
+            <span className={r.totalLossBb > 0 ? "bad" : "muted"}>{r.totalLossBb > 0 ? `-${r.totalLossBb}` : "OK"}</span>
+          </div>
+        ))}
+      </div>
+
+      {kibos.length > 0 && kibos.length !== reviews.length && (
+        <div className="card">
+          <div className="row"><span className="idx">03</span><b>기보</b></div>
+          {kibos.map((h) => (
+            <div key={String(h.at) + h.handNumber} className="task-row">
+              <div style={{ flex: 1 }}><b>#{h.handNumber} {h.headline}</b></div>
+              <span className={h.heroDelta >= 0 ? "good" : "bad"}>{signedBb(h.heroDelta)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="card">
+        <div className="row"><span className="idx">04</span><b>상대</b></div>
+        {session.villainIds.map((id) => (
+          <div key={id} className="list-item">
+            <Avatar id={id} />
+            <b>{VILLAIN_BY_ID[id]?.name ?? id}</b>
+          </div>
+        ))}
+      </div>
+
+      <button className="btn launch wide" onClick={() => go("home")}>홈</button>
+      <button className="btn glass wide" style={{ marginTop: 8 }} onClick={() => go("analyze")}>전체 분석</button>
+    </section>
+  );
+}
