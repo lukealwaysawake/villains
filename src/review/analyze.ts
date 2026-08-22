@@ -58,7 +58,7 @@ export function analyzeHand(state: TableState): ReviewCard {
   let body = "큰 실수는 안 보였습니다.";
   let alt = "다음 핸드에서 상대 HUD만 한 번 더 보세요.";
   let statLabel = "결과";
-  let statValue = `${resultBb >= 0 ? "+" : ""}${resultBb}bb`;
+  let statValue = `${resultBb >= 0 ? "+$" : "−$"}${Math.abs(resultBb)}`;
   let leak: string | undefined;
 
   const riverBet = acts.find((a) => a.street === "river" && (a.type === "bet" || a.type === "raise"));
@@ -132,8 +132,8 @@ export function analyzeHand(state: TableState): ReviewCard {
   if (opp?.id === "weekend" && last?.type === "check" && street === "turn" && last.potBefore >= 40 * state.bb) {
     loss = Math.max(loss, 3.5);
     headline = "큰 팟에서 주말전사를 놓침";
-    body = "팟이 60bb를 넘으면 주말전사의 폴드 빈도가 급등합니다. 사이징을 키우세요.";
-    statLabel = "60bb+ 폴드 가산";
+    body = "팟이 $60를 넘으면 주말전사의 폴드 빈도가 급등합니다. 사이징을 키우세요.";
+    statLabel = "$60+ 폴드 가산";
     statValue = "+35%p";
     leak = "STACK_MISREAD";
   }

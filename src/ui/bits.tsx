@@ -35,7 +35,7 @@ export function bb(chips: number): string {
 export function signedBb(value: number): string {
   const rounded = Math.round(value * 10) / 10;
   const body = Math.abs(rounded) % 1 === 0 ? Math.abs(rounded).toFixed(0) : Math.abs(rounded).toFixed(1);
-  return `${rounded > 0 ? "+" : rounded < 0 ? "−" : ""}${body}bb`;
+  return `${rounded > 0 ? "+" : rounded < 0 ? "−" : ""}$${body}`;
 }
 
 export interface SegmentOption<T extends string | number> {

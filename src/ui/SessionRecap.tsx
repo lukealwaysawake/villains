@@ -28,7 +28,7 @@ export function SessionRecap({
       <div className="eyebrow">SESSION RECAP</div>
       <h1 className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</h1>
       <p className="kicker">
-        {session.handsPlayed}핸드 · {session.room ? `$${session.room.sb}/${session.room.bb}` : "캐시"} · {session.villainIds.map((id) => VILLAIN_BY_ID[id]?.name).join(" · ")}
+        {session.handsPlayed}핸드 · {session.room ? `$${session.room.sb}/$${session.room.bb}` : "캐시"} · {session.villainIds.map((id) => VILLAIN_BY_ID[id]?.name).join(" · ")}
       </p>
       <div className="grid3" style={{ marginTop: 10 }}>
         <div className="card"><div className="muted">VPIP</div><b>{vpip}%</b></div>
@@ -48,7 +48,7 @@ export function SessionRecap({
           <div key={p.tag} className="task-row">
             <div style={{ flex: 1 }}>
               <b>{p.tag}</b>
-              <div className="kicker">{p.count}회 · -{p.loss.toFixed(1)}bb</div>
+              <div className="kicker">{p.count}회 · -${p.loss.toFixed(1)}</div>
             </div>
           </div>
         ))}
@@ -62,7 +62,7 @@ export function SessionRecap({
             <summary>
               <i className={`dot ${r.severity}`} />
               <span className="hb-title">#{r.handNumber} {r.headline}</span>
-              <span className={r.totalLossBb > 0 ? "bad" : "muted"}>{r.totalLossBb > 0 ? `-${r.totalLossBb}bb` : "OK"}</span>
+              <span className={r.totalLossBb > 0 ? "bad" : "muted"}>{r.totalLossBb > 0 ? `-$${r.totalLossBb}` : "OK"}</span>
             </summary>
             <p className="kicker">{r.body}</p>
             {r.streets && r.streets.length > 0 && (

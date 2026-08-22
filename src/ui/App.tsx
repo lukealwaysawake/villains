@@ -379,7 +379,7 @@ function Detail({
       </div>
       <div className="grid3">
         <div className="card"><div className="muted">핸드</div><b>{m.handsPlayed}</b></div>
-        <div className="card"><div className="muted">bb/100</div><b>{m.handsPlayed ? ((m.bb / m.handsPlayed) * 100).toFixed(1) : "—"}</b></div>
+        <div className="card"><div className="muted">$/100핸드</div><b>{m.handsPlayed ? `$${((m.bb / m.handsPlayed) * 100).toFixed(1)}` : "—"}</b></div>
         <div className="card"><div className="muted">숙련</div><b>{masteryPct(m)}%</b></div>
       </div>
       <div className="card">
@@ -412,7 +412,7 @@ function Detail({
           <p className="kicker">이 빌런과 3세션 정도 친 뒤에 힌트가 열립니다.</p>
         )}
       </div>
-      <p className="kicker">완벽 대응 {v.expectedBb100} bb/100</p>
+      <p className="kicker">완벽 대응 {v.expectedBb100}/100핸드</p>
       <button className="btn primary wide" onClick={duel}>이 빌런 포함해 앉기</button>
     </section>
   );
@@ -437,7 +437,7 @@ function Reviews({ profile, setProfile, go }: { profile: Profile; setProfile: (p
       <p className="kicker">{cur.body}</p>
       <div className="card">
         <div className="row"><span>{cur.statLabel}</span><b>{cur.statValue}</b></div>
-        <div className="row"><span>손실</span><b className="bad">−{cur.totalLossBb}bb</b></div>
+        <div className="row"><span>손실</span><b className="bad">−${cur.totalLossBb}</b></div>
       </div>
       <div className="button-pair review-page-actions">
         <button
@@ -584,7 +584,7 @@ function Fairness({ session, go }: { session: Session | null; go: (s: Screen) =>
         <p className="kicker">브라우저에서 약 240핸드만 돌립니다. 기획서의 50만 핸드는 CI용입니다.</p>
         <button className="btn wide" onClick={() => setRows(roundRobin(240))}>돌리기</button>
         {rows && rows.map((r) => (
-          <div key={r.id} className="row" style={{ marginTop: 6 }}><span>{r.name}</span><b>{r.bb100.toFixed(1)}</b></div>
+          <div key={r.id} className="row" style={{ marginTop: 6 }}><span>{r.name}</span><b>${r.bb100.toFixed(1)}</b></div>
         ))}
       </div>
       <div className="card">

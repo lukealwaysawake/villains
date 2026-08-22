@@ -147,7 +147,7 @@ export function CreateRoom({
           onChange={setStartStack}
           columns={4}
         />
-        <p className="field-help">현재 {Math.round(startStack / Math.max(bb, 0.01))}bb로 시작합니다.</p>
+        <p className="field-help">현재 ${startStack}로 시작합니다.</p>
       </section>
 
       <section className="form-section" aria-labelledby="opponents-title">

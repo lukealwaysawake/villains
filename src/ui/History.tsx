@@ -16,7 +16,7 @@ export function History({ profile, go }: { profile: Profile; go: (s: Screen) => 
       <div className="grid3">
         <div className="card"><div className="muted">누적 핸드</div><b>{profile.lifetimeHands}</b></div>
         <div className="card"><div className="muted">세션</div><b>{sessions.length}</b></div>
-        <div className="card"><div className="muted">세션 합</div><b className={lifeBb >= 0 ? "good" : "bad"}>{lifeBb >= 0 ? "+" : ""}{lifeBb.toFixed(1)}</b></div>
+        <div className="card"><div className="muted">세션 합</div><b className={lifeBb >= 0 ? "good" : "bad"}>{lifeBb >= 0 ? "+$" : "−$"}{Math.abs(lifeBb).toFixed(1)}</b></div>
       </div>
       <div className="insight">
         <div className="row"><span className="idx">00</span><b>내 패턴 분석</b></div>
@@ -27,7 +27,7 @@ export function History({ profile, go }: { profile: Profile; go: (s: Screen) => 
             <div style={{ flex: 1 }}>
               <b>{h.tag}</b>
               <div className="kicker">
-                {h.count}회 · 손실 -{h.totalLossBb.toFixed(1)}bb
+                {h.count}회 · 손실 -${h.totalLossBb.toFixed(1)}
                 {h.villains.length ? " · " + h.villains.map((id) => VILLAIN_BY_ID[id]?.name ?? id).join(", ") : ""}
               </div>
               {h.examples[0] && <div className="kicker">{h.examples[0].body}</div>}
@@ -47,7 +47,7 @@ export function History({ profile, go }: { profile: Profile; go: (s: Screen) => 
                 {s.handsPlayed}핸드 · {s.villainIds.map((id) => VILLAIN_BY_ID[id]?.name ?? id).join(" · ")}
               </div>
             </div>
-            <span className={s.bbDelta >= 0 ? "good" : "bad"}>{s.bbDelta >= 0 ? "+" : ""}{s.bbDelta.toFixed(1)}</span>
+            <span className={s.bbDelta >= 0 ? "good" : "bad"}>{s.bbDelta >= 0 ? "+$" : "−$"}{Math.abs(s.bbDelta).toFixed(1)}</span>
           </div>
         ))}
       </div>

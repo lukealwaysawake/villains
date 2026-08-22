@@ -259,7 +259,7 @@ export function TableScreen({
     <section className="screen play">
       <div className="playhud">
         <button className="hud-exit" onClick={() => setExitOpen(true)} aria-label="세션 종료 메뉴">종료</button>
-        <b className="hud-stakes">{session.room ? `${session.room.sb ?? 0.5}/${session.room.bb ?? 1}` : "캐시"}</b>
+        <b className="hud-stakes">{session.room ? `$${session.room.sb ?? 0.5}/$${session.room.bb ?? 1}` : "캐시"}</b>
         <span className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</span>
         <span className="hud-hand">#{table.handNumber}</span>
       </div>
@@ -280,7 +280,7 @@ export function TableScreen({
         <button className="badge" onClick={() => setOpenReview(true)}>
           <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <i className={`dot ${badge.severity}`} />
-            {badge.severity === "green" ? "최적에 근접" : `${badge.street} -${badge.totalLossBb}bb`}
+            {badge.severity === "green" ? "최적에 근접" : `${badge.street} -$${badge.totalLossBb}`}
           </span>
           <span className="muted">탭</span>
         </button>
@@ -361,7 +361,7 @@ export function TableScreen({
               <div className="review-kicker"><i className={`dot ${badge.severity}`} aria-hidden="true" />{badge.severity === "green" ? "좋은 결정" : badge.severity === "yellow" ? "확인할 결정" : "큰 손실 결정"}</div>
               <b>{badge.headline}</b>
               <p>{badge.body}</p>
-              <div className="conf">{badge.totalLossBb > 0 ? `손실 ${badge.totalLossBb}bb` : "추정 손실 없음"}</div>
+              <div className="conf">{badge.totalLossBb > 0 ? `손실 $${badge.totalLossBb}` : "추정 손실 없음"}</div>
             </div>
             {badge.streets && badge.streets.length > 0 && (
               <div className="street-rows">
@@ -382,7 +382,7 @@ export function TableScreen({
                 {badge.exploitLine && <div><b>상대 맞춤 전략</b><p>{badge.exploitLine}</p></div>}
                 {badge.candidates && badge.candidates.length > 0 && (
                   <div className="candidate-list">
-                    {badge.candidates.map((candidate) => <span key={candidate.label}><b>{candidate.label}</b><em>{candidate.ev >= 0 ? "+" : ""}{candidate.ev.toFixed(1)}bb</em></span>)}
+                    {badge.candidates.map((candidate) => <span key={candidate.label}><b>{candidate.label}</b><em>{candidate.ev >= 0 ? "+$" : "−$"}{Math.abs(candidate.ev).toFixed(1)}</em></span>)}
                   </div>
                 )}
                 {badge.totalLossBb > 0 && <p className="repeat-note">이번 세션에서 같은 유형이 {session.reviews.filter((review) => review.headline === badge.headline).length}번 나왔습니다.</p>}
