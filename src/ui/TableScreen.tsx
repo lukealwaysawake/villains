@@ -259,16 +259,11 @@ export function TableScreen({
       <div className="playtop">
         <div className="left">
           <button className="chip" onClick={onExit}>종료</button>
-          {session.room?.name ? <span className="chip">{session.room.name}</span> : null}
           {session.room ? <span className="chip">${session.room.sb ?? 0.5}/${session.room.bb ?? 1}</span> : null}
-          {session.room ? <span className="chip">시작 ${session.room.startStack ?? session.room.buyInBb}</span> : null}
-          {session.room ? <span className="chip">바이인 {session.heroBuyIns ?? 1}{session.room.buyInLimit ? "/" + session.room.buyInLimit : ""}</span> : null}
           <span className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</span>
         </div>
         <div className="right">
-          <span className="chip">{table.street === "preflop" ? "프리플랍" : table.street === "flop" ? "플랍" : table.street === "turn" ? "턴" : table.street === "river" ? "리버" : "종료"}</span>
           <span className="chip">#{table.handNumber}</span>
-          <span className="chip">리뷰 {profile.reviewQueue.length}</span>
         </div>
       </div>
 
@@ -284,7 +279,7 @@ export function TableScreen({
 
       {coach && <div className="toast">{coach}</div>}
 
-      {badge && (
+      {badge && table.street !== "complete" && (
         <button className="badge" onClick={() => setOpenReview(true)}>
           <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <i className={`dot ${badge.severity}`} />
@@ -337,7 +332,15 @@ export function TableScreen({
       )}
 
       {table.street === "complete" && (
-        <button className="btn launch wide" onClick={nextHand}>다음 핸드</button>
+        <div className="endbar">
+          {badge && (
+            <button className="end-rev" onClick={() => setOpenReview(true)}>
+              <i className={`dot ${badge.severity}`} />
+              <span>{badge.headline}</span>
+            </button>
+          )}
+          <button className="btn launch wide" onClick={nextHand}>다음 핸드</button>
+        </div>
       )}
 
       {openReview && badge && (

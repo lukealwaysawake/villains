@@ -105,10 +105,8 @@ export function FeltTable({
           <div className="made-tag">{madeLabel(heroRead.made)}</div>
         )}
         {table.street === "complete" && table.result && (
-          <div className={`insight win-banner ${table.result.heroDelta >= 0 ? "win" : "lose"}`}>
-            <div className={table.result.heroDelta >= 0 ? "good" : "bad"}>
-              {table.result.heroDelta >= 0 ? "WIN +" : "LOSS -"}{bb(Math.abs(table.result.heroDelta))}
-            </div>
+          <div className={`win-pill ${table.result.heroDelta >= 0 ? "win" : "lose"}`}>
+            {table.result.heroDelta >= 0 ? "+" : "-"}{bb(Math.abs(table.result.heroDelta))}
           </div>
         )}
       </div>

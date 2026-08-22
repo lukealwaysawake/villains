@@ -1200,3 +1200,34 @@ input[type="range"] { width: 100%; accent-color: var(--gold); margin-top: 8px; }
   text-align: center;
 }
 .empty img { width: 44px; height: 44px; border-radius: 12px; opacity: 0.8; }
+
+.playtop { flex-wrap: nowrap; overflow: hidden; }
+.playtop .left, .playtop .right { flex-wrap: nowrap; min-width: 0; }
+.endbar {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+}
+.end-rev {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.38);
+  font-size: 12px;
+  text-align: left;
+}
+.end-rev span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.win-pill {
+  margin-top: 4px;
+  font-family: Fraunces, serif;
+  font-size: 16px;
+  text-shadow: 0 2px 10px #000;
+}
+.win-pill.win { color: var(--good); }
+.win-pill.lose { color: var(--danger); }
+.screen.play { overflow: hidden; }
+.sheet .panel { max-height: 70%; }
