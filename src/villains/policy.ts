@@ -1,3 +1,4 @@
+import { chenPercentile } from "../engine/chen";
 import { equityVsRandom, potOdds } from "../engine/equity";
 import { preflopStrength, readSpot } from "../engine/handRank";
 import { legalActions, positionFor, potTotal, type TableState } from "../engine/game";
@@ -55,7 +56,7 @@ function applyVendettaTilt(id: string, runtime: VillainRuntime, stats: PokerStat
 }
 
 function percentile(holeStrength: number): number {
-  return Math.max(0.5, Math.min(99, 100 - holeStrength * 0.92));
+  return chenPercentile(holeStrength);
 }
 
 function sizingTo(state: TableState, seat: number, potFrac: number, overbet = false): number {
