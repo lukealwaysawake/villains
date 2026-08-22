@@ -59,7 +59,7 @@ export function App() {
           onDone={() => {
             const next = { ...profile, onboardingDone: true };
             setProfile(next);
-            start(["uncleho", "nitlee", "stationpark"], "intro", true);
+            go("create-room");
           }}
         />
       )}
@@ -122,7 +122,7 @@ export function App() {
       {screen === "create-room" && (
         <CreateRoom
           profile={profile}
-          onBack={() => go("lobby")}
+          onBack={() => go("home")}
           onCreate={(room, ids) => start(ids, "custom", false, room)}
         />
       )}
@@ -132,7 +132,6 @@ export function App() {
 }
 
 function Onboarding({ onDone }: { onDone: () => void }) {
-  const [step, setStep] = useState(0);
   return (
     <section className="screen boot">
       <div className="splash-hero" aria-hidden="true" />
@@ -157,25 +156,10 @@ function Onboarding({ onDone }: { onDone: () => void }) {
         <div className="boot-ava a3"><Avatar id="stationpark" /></div>
       </div>
       <h1 className="brand on-title">읽을 수 있는<br/>상대</h1>
-      {step === 0 && (
-        <div className="on-body">
-          <p className="kicker">빌런 15명. 구멍은 각자 하나씩 있다. 찾아서 패면 된다.</p>
-          <button className="btn primary wide" onClick={() => setStep(1)}>시작</button>
-        </div>
-      )}
-      {step === 1 && (
-        <div className="on-body">
-          <div className="card">
-            <b>입문 테이블</b>
-            <p className="kicker">삼촌, 이대리, 박사장. 힌트 켜고 30핸드.</p>
-          </div>
-          <div className="card">
-            <b>리뷰는 안 막음</b>
-            <p className="kicker">핸드 끝나면 점만 뜬다. 보고 싶을 때 탭. 스킵하면 분석에 쌓인다.</p>
-          </div>
-          <button className="btn primary wide" onClick={onDone}>입문 테이블</button>
-        </div>
-      )}
+      <div className="on-body">
+        <p className="kicker">인원이랑 상대를 고르고 앉는다.</p>
+        <button className="btn primary wide" onClick={onDone}>테이블 구성</button>
+      </div>
     </section>
   );
 }
@@ -227,7 +211,7 @@ function Home({
         <div className="row"><span className="idx">01</span><span className="eyebrow">오늘</span></div>
         <p className="kicker" style={{ marginTop: 8 }}>{focus}</p>
       </div>
-      <button className="btn launch wide" style={{ margin: "12px 0 8px" }} onClick={() => go("lobby")}>테이블</button>
+      <button className="btn launch wide" style={{ margin: "12px 0 8px" }} onClick={() => go("create-room")}>테이블</button>
       <button className="btn glass wide" onClick={() => go("analyze")}>분석 · 기보</button>
       <div className="row" style={{ margin: "8px 0 10px" }}>
         <b>빌런 숙련도</b>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { PRESETS, VILLAINS } from "../villains/catalog";
-import { canUseVillain, defaultRoom, isUnlocked, type Profile, type RoomConfig } from "../state/store";
+import { defaultRoom, type Profile, type RoomConfig } from "../state/store";
 import { Avatar } from "./bits";
 
 const STAKES = [
@@ -18,12 +18,11 @@ const LIMITS = [
 ];
 
 export function CreateRoom({
-  profile,
   initial,
   onBack,
   onCreate,
 }: {
-  profile: Profile;
+  profile?: Profile;
   initial?: Partial<RoomConfig>;
   onBack: () => void;
   onCreate: (room: RoomConfig, villainIds: string[]) => void;
@@ -42,7 +41,6 @@ export function CreateRoom({
   const buyInBb = Math.max(20, Math.round(startStack / bb)) as 50 | 100 | 200;
 
   function toggle(id: string) {
-    if (!canUseVillain(profile, id) || !isUnlocked(profile, id)) return;
     if (picks.includes(id)) setPicks(picks.filter((x) => x !== id));
     else if (picks.length < need) setPicks([...picks, id]);
   }
@@ -138,9 +136,8 @@ export function CreateRoom({
         <div className="villain-grid" style={{ marginTop: 10 }}>
           {VILLAINS.map((v) => {
             const on = picks.includes(v.id);
-            const lock = !canUseVillain(profile, v.id);
             return (
-              <button key={v.id} className={`vcell ${lock ? "lock" : ""} ${on ? "sel on" : ""}`} disabled={lock} onClick={() => toggle(v.id)}>
+              <button key={v.id} className={`vcell ${on ? "sel on" : ""}`} onClick={() => toggle(v.id)}>
                 <Avatar id={v.id} />
                 <div className="name">{v.name}</div>
               </button>
