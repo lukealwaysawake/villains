@@ -68,3 +68,73 @@ export function exploitProbe(targetId: string, hands = 200): number {
   }
   return (bb / hands) * 100;
 }
+
+export interface BehaviorRow {
+  id: string;
+  name: string;
+  archetype: string;
+  hands: number;
+  vpip: number;
+  vpipSpec: number;
+  pfr: number;
+  pfrSpec: number;
+  af: number;
+  afSpec: number;
+  cbet: number;
+  cbetSpec: number;
+  ok: boolean;
+}
+
+export function behaviorProbe(hands = 600): BehaviorRow[] {
+  const ids = VILLAINS.map((v) => v.id);
+  const acc: Record<string, { hands: number; vpip: number; pfr: number; bets: number; calls: number; flop: number; cbet: number }> = {};
+  for (const id of ids) acc[id] = { hands: 0, vpip: 0, pfr: 0, bets: 0, calls: 0, flop: 0, cbet: 0 };
+
+  for (let n = 0; n < hands; n++) {
+    const table: string[] = [];
+    for (let k = 0; k < 6; k++) table.push(ids[(n + k) % ids.length]);
+    const state = playHand(table, n % 6, `probe:${n}`, n + 1);
+    if (!state.result) continue;
+    for (const p of state.players) {
+      const a = acc[p.id];
+      if (!a) continue;
+      a.hands += 1;
+      const mine = state.actionLog.filter((x) => x.actorId === p.id);
+      const pre = mine.filter((x) => x.street === "preflop");
+      if (pre.some((x) => x.type !== "fold")) a.vpip += 1;
+      if (pre.some((x) => x.type === "raise" || x.type === "bet" || x.type === "allin")) a.pfr += 1;
+      a.bets += mine.filter((x) => x.type === "bet" || x.type === "raise" || x.type === "allin").length;
+      a.calls += mine.filter((x) => x.type === "call").length;
+      const flop = mine.filter((x) => x.street === "flop");
+      if (flop.length) {
+        a.flop += 1;
+        if (flop.some((x) => x.type === "bet" || x.type === "raise")) a.cbet += 1;
+      }
+    }
+  }
+
+  const pct = (x: number, y: number) => (y ? Math.round((x / y) * 1000) / 10 : 0);
+  return VILLAINS.map((v) => {
+    const a = acc[v.id];
+    const vpip = pct(a.vpip, a.hands);
+    const pfr = pct(a.pfr, a.hands);
+    const af = a.calls ? Math.round((a.bets / a.calls) * 100) / 100 : a.bets;
+    const cbet = pct(a.cbet, a.flop);
+    const spec = v.baseStats;
+    return {
+      id: v.id,
+      name: v.name,
+      archetype: v.archetype,
+      hands: a.hands,
+      vpip,
+      vpipSpec: spec.vpip,
+      pfr,
+      pfrSpec: spec.pfr,
+      af,
+      afSpec: spec.aggressionFactor,
+      cbet,
+      cbetSpec: spec.cbetFlop ?? 0,
+      ok: Math.abs(vpip - spec.vpip) <= 12 && Math.abs(pfr - spec.pfr) <= 12,
+    };
+  }).sort((a, b) => b.vpip - a.vpip);
+}

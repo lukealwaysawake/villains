@@ -17,7 +17,7 @@ import {
   type RoomConfig,
 } from "../state/store";
 import { verifyCommit } from "../engine/fairness";
-import { roundRobin } from "../engine/sim";
+import { roundRobin, behaviorProbe, type BehaviorRow } from "../engine/sim";
 import { Avatar, Nav, PlayingCard, ChipStack, signedBb } from "./bits";
 import { TableScreen } from "./TableScreen";
 import { Analyze } from "./Analyze";
@@ -434,7 +434,8 @@ function Fairness({ session, go }: { session: Session | null; go: (s: Screen) =>
   const [server, setServer] = useState(session?.fairness?.seedServer ?? "");
   const [hash, setHash] = useState(session?.fairness?.seedServerHash ?? "");
   const [ok, setOk] = useState<string>("");
-  const [rows, setRows] = useState<{ name: string; bb100: number; hands: number }[] | null>(null);
+  const [rows, setRows] = useState<{ id: string; name: string; bb100: number; hands: number }[] | null>(null);
+  const [probe, setProbe] = useState<BehaviorRow[] | null>(null);
   return (
     <section className="screen">
       <h1>공정성</h1>
@@ -458,6 +459,27 @@ function Fairness({ session, go }: { session: Session | null; go: (s: Screen) =>
         {rows && rows.map((r) => (
           <div key={r.id} className="row" style={{ marginTop: 6 }}><span>{r.name}</span><b>{r.bb100.toFixed(1)}</b></div>
         ))}
+      </div>
+      <div className="card">
+        <b>빌런 성향 검증</b>
+        <p className="kicker">설계값(스펙) 대비 실제 플레이를 측정합니다. 600핸드 자기대전.</p>
+        <button className="btn wide" onClick={() => setProbe(behaviorProbe(600))}>성향 측정</button>
+        {probe && (
+          <div className="probe-rows">
+            <div className="probe-head">
+              <span>빌런</span><span>VPIP</span><span>PFR</span><span>AF</span><span>판정</span>
+            </div>
+            {probe.map((r) => (
+              <div key={r.id} className="probe-row">
+                <span className="pr-name">{r.name}<em>{r.archetype}</em></span>
+                <span>{r.vpipSpec}<i>{r.vpip}</i></span>
+                <span>{r.pfrSpec}<i>{r.pfr}</i></span>
+                <span>{r.afSpec}<i>{r.af}</i></span>
+                <span className={r.ok ? "good" : "bad"}>{r.ok ? "정상" : "이탈"}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <button className="btn wide" onClick={() => go("settings")}>설정으로</button>
     </section>
