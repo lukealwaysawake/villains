@@ -21,6 +21,11 @@ npm run dev
 
 Vercel 정적 웹앱. 프레임워크는 Vite.
 
+Poker math:
+- 7-card ranking: best-of-21 five-card combinations (same approach as [pokersolver](https://github.com/goldfire/pokersolver), MIT)
+- Preflop: Bill Chen formula from *Hold'em Excellence*
+- Postflop / review: Monte Carlo equity vs a random remaining hand
+
 UI motion/button language adapted from [ThreeUI Community](https://github.com/MengTo/threeui) (MIT).
 
 Review/insight/chip language adapted from [Beautiful UI](https://www.beautifului.dev/) patterns.

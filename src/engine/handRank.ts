@@ -1,4 +1,5 @@
 import type { Card, Rank } from "./types";
+import { chenStrength100 } from "./chen";
 
 export const CAT = {
   HIGH: 0,
@@ -246,19 +247,5 @@ export function madeLabel(made: MadeClass): string {
 }
 
 export function preflopStrength(hole: [Card, Card]): number {
-  const [a, b] = [...hole].sort((x, y) => y.rank - x.rank);
-  const pair = a.rank === b.rank;
-  const suited = a.suit === b.suit;
-  const gap = a.rank - b.rank;
-  let score = a.rank * 2 + b.rank;
-  if (pair) score = 40 + a.rank * 4;
-  else {
-    if (suited) score += 8;
-    if (gap === 1) score += 6;
-    else if (gap === 2) score += 3;
-    else if (gap >= 5) score -= gap * 1.4;
-    if (a.rank >= 14) score += 6;
-    if (a.rank >= 13 && b.rank >= 10) score += 4;
-  }
-  return Math.max(0, Math.min(100, score));
+  return chenStrength100(hole);
 }
