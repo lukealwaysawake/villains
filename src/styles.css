@@ -902,3 +902,98 @@ input[type="range"] { width: 100%; accent-color: var(--gold); margin-top: 8px; }
   .pcard-3d.lg { width: 46px; height: 66px; }
   .felt-wood { inset: 7% 3% 13%; }
 }
+
+/* live fx */
+.splash {
+  position: absolute;
+  left: 50%;
+  top: 36%;
+  transform: translate(-50%, -50%);
+  z-index: 8;
+  font-family: Fraunces, serif;
+  font-size: 28px;
+  letter-spacing: 0.12em;
+  color: #fff6d8;
+  text-shadow: 0 4px 24px rgba(0,0,0,0.7);
+  animation: splashPop 0.72s var(--ease) both;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.splash.allin { font-size: 34px; color: #ffd36a; }
+.splash.raise, .splash.bet { color: #f0d48a; }
+.splash.call { font-size: 22px; color: #d7efe0; }
+.made-tag {
+  margin-top: 2px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: #f0d48a;
+  text-transform: uppercase;
+}
+.pot-lab { font-size: 9px; letter-spacing: 0.2em; color: #cbb98a; }
+.pot.suck { animation: potSuck 0.4s var(--ease); }
+.bet-pile { position: absolute; z-index: 4; }
+.seat.s0 .bet-pile { top: -10px; }
+.seat.s1 .bet-pile, .seat.s2 .bet-pile { right: -8px; top: 36px; }
+.seat.s3 .bet-pile { bottom: -14px; }
+.seat.s4 .bet-pile, .seat.s5 .bet-pile { left: -8px; top: 36px; }
+.bet-pile.to-pot { animation: toPot 0.42s var(--ease) both; }
+.seat.s0 .bet-pile.to-pot { --dx: 0px; --dy: -90px; }
+.seat.s1 .bet-pile.to-pot, .seat.s2 .bet-pile.to-pot { --dx: 70px; --dy: -20px; }
+.seat.s3 .bet-pile.to-pot { --dx: 0px; --dy: 70px; }
+.seat.s4 .bet-pile.to-pot, .seat.s5 .bet-pile.to-pot { --dx: -70px; --dy: -20px; }
+.seat.winner .avatar { box-shadow: 0 0 0 3px #ead28a, 0 0 22px rgba(234,210,138,0.7); }
+.win-burst {
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+  border: 2px solid rgba(240,212,138,0.0);
+  animation: burst 0.7s ease-out both;
+  pointer-events: none;
+}
+.muck-tag {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: #9b9488;
+  background: rgba(0,0,0,0.35);
+  border-radius: 99px;
+  padding: 2px 6px;
+}
+.ticker {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 0;
+  display: flex;
+  gap: 8px;
+  overflow: hidden;
+  font-size: 10px;
+  color: #d7d0c4;
+  z-index: 5;
+}
+.ticker span {
+  flex: 0 0 auto;
+  background: rgba(0,0,0,0.35);
+  border-radius: 99px;
+  padding: 2px 7px;
+  animation: rise 0.2s var(--ease);
+}
+.win-banner.win { box-shadow: 0 0 24px rgba(111,191,138,0.35); }
+.acts .btn.allin { background: #4a1c18; color: #f0c2ba; }
+.odds-line { font-size: 11px; color: #cbb98a; text-align: center; margin-top: 6px; }
+@keyframes splashPop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+  25% { opacity: 1; transform: translate(-50%, -50%) scale(1.08); }
+  100% { opacity: 0; transform: translate(-50%, -62%) scale(1); }
+}
+@keyframes toPot {
+  to { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.5); }
+}
+@keyframes potSuck {
+  0% { transform: scale(0.92); }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+@keyframes burst {
+  0% { box-shadow: 0 0 0 0 rgba(240,212,138,0.6); opacity: 1; }
+  100% { box-shadow: 0 0 0 18px rgba(240,212,138,0); opacity: 0; }
+}

@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { applyAction, createFreshPlayers, describeAction, legalActions, sizingPresets, startHand, type TableState } from "../engine/game";
+import { applyAction, createFreshPlayers, legalActions, sizingPresets, startHand, type TableState } from "../engine/game";
 import { BB } from "../engine/types";
 import { analyzeHand, type ReviewCard } from "../review/analyze";
 import { scoreDecisionAsync } from "../review/evClient";
 import { commitHand, isPro, persistLive, remainingDailyHands, type Profile, type Session } from "../state/store";
-import { VILLAIN_BY_ID } from "../villains/catalog";
 import { decideVillain, delayFor } from "../villains/policy";
 import { maybeSpeak, onHandEnd, sessionStartLines, updateHeroRead, type SpeechEvent } from "../villains/runtime";
 import { FeltTable } from "./FeltTable";
@@ -288,6 +287,12 @@ export function TableScreen({
               {legal.callAmount > 0 ? "레이즈" : "벳"}
             </button>
           </div>
+          {legal.canBet && (
+            <button className="btn allin wide" style={{ marginTop: 8 }} onClick={() => act("allin", legal.maxRaiseTo)}>올인 {bb(legal.maxRaiseTo)}</button>
+          )}
+          {legal.canCall && legal.callAmount > 0 && (
+            <div className="odds-line">팟오즈 {Math.round((legal.callAmount / (legal.pot + legal.callAmount)) * 100)}%</div>
+          )}
           {raiseOn && (
             <>
               <div className="sizes">
@@ -364,9 +369,6 @@ export function TableScreen({
         </div>
       )}
 
-      <div className="muted" style={{ fontSize: 10, marginTop: 6, textAlign: "center" }}>
-        {table.actionLog.slice(-3).map((a) => `${a.actorId === "hero" ? "나" : VILLAIN_BY_ID[a.actorId]?.name ?? a.actorId} ${describeAction(a)}`).join(" · ")}
-      </div>
     </section>
   );
 }
