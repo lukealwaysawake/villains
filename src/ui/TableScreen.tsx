@@ -13,16 +13,36 @@ import { coachLine } from "./coach";
 function deal(s: Session): TableState {
   s.handNumber += 1;
   if (s.handNumber > 1) s.button = (s.button + 1) % (s.villainIds.length + 1);
-  const buyIn = s.buyInChips ?? 10000;
+  const room = s.room;
+  const buyIn = s.buyInChips ?? Math.round((room?.startStack ?? 100) * 100);
+  const sb = Math.round((room?.sb ?? 0.5) * 100);
+  const bbChip = Math.round((room?.bb ?? 1) * 100);
+  const limit = room?.buyInLimit ?? 0;
   const ids = ["hero", ...s.villainIds];
-  const players = createFreshPlayers(ids, buyIn).map((p) => ({ ...p, stack: s.stacks[p.id] ?? buyIn }));
+  const players = createFreshPlayers(ids, buyIn).map((p) => {
+    let stack = s.stacks[p.id] ?? buyIn;
+    if (stack < bbChip) {
+      if (p.id === "hero") {
+        const used = s.heroBuyIns ?? 1;
+        if (room?.autoRebuy !== false && (limit === 0 || used < limit)) {
+          s.heroBuyIns = used + 1;
+          stack = buyIn;
+        }
+      } else if (room?.autoRebuy !== false) {
+        stack = buyIn;
+      }
+    }
+    return { ...p, stack };
+  });
   return startHand({
     players,
     button: s.button,
     handNumber: s.handNumber,
     seed: s.seed,
     buyIn,
-    autoRebuy: s.room?.autoRebuy !== false,
+    autoRebuy: false,
+    sb,
+    bb: bbChip,
   });
 }
 
@@ -186,7 +206,12 @@ export function TableScreen({
       setBlocked("오늘 무료 핸드를 다 썼습니다.");
       return;
     }
-    if (sessionRef.current.room && sessionRef.current.room.autoRebuy === false && (sessionRef.current.stacks.hero ?? 0) < 100) {
+    const room = sessionRef.current.room;
+    const bbChip = Math.round((room?.bb ?? 1) * 100);
+    const limit = room?.buyInLimit ?? 0;
+    const used = sessionRef.current.heroBuyIns ?? 1;
+    const heroStack = sessionRef.current.stacks.hero ?? 0;
+    if (heroStack < bbChip && (room?.autoRebuy === false || (limit > 0 && used >= limit))) {
       setBlocked("바이인이 소진됐습니다. 세션을 종료합니다.");
       return;
     }
@@ -235,7 +260,9 @@ export function TableScreen({
         <div className="left">
           <button className="chip" onClick={onExit}>종료</button>
           {session.room?.name ? <span className="chip">{session.room.name}</span> : null}
-          {session.room ? <span className="chip">{session.room.buyInBb}bb</span> : null}
+          {session.room ? <span className="chip">${session.room.sb ?? 0.5}/${session.room.bb ?? 1}</span> : null}
+          {session.room ? <span className="chip">시작 ${session.room.startStack ?? session.room.buyInBb}</span> : null}
+          {session.room ? <span className="chip">바이인 {session.heroBuyIns ?? 1}{session.room.buyInLimit ? "/" + session.room.buyInLimit : ""}</span> : null}
           <span className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</span>
         </div>
         <div className="right">

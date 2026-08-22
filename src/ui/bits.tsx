@@ -20,15 +20,22 @@ export function Avatar({ id, size = "sm" }: { id: string; size?: "sm" | "lg" }) 
   );
 }
 
+function dollars(n: number): string {
+  const v = Math.abs(n) > 25 ? n / 100 : n;
+  const r = Math.round(v * 100) / 100;
+  if (r % 1 === 0) return String(r);
+  return r.toFixed(2).replace(/0$/, "");
+}
+
 export function bb(n: number): string {
-  const v = typeof n === "number" && n > 50 ? chipsToBb(n) : n;
-  const r = Math.round(v * 10) / 10;
-  return `${r % 1 === 0 ? r.toFixed(0) : r}bb`;
+  return "$" + dollars(n);
 }
 
 export function signedBb(n: number): string {
-  const r = Math.round(n * 10) / 10;
-  return `${r > 0 ? "+" : ""}${r}bb`;
+  const v = Math.abs(n) > 25 ? n / 100 : n;
+  const r = Math.round(v * 100) / 100;
+  const body = r % 1 === 0 ? String(Math.abs(r)) : Math.abs(r).toFixed(2).replace(/0$/, "");
+  return `${r > 0 ? "+$" : r < 0 ? "-$" : "$"}${body}`;
 }
 
 export function Nav({ screen, go, hidden }: { screen: Screen; go: (s: Screen) => void; hidden?: boolean }) {

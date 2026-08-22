@@ -33,6 +33,8 @@ export interface TableState {
   actionLog: Action[];
   result: HandResult | null;
   startedAt: number;
+  sb: number;
+  bb: number;
 }
 
 const STREETS: Street[] = ["preflop", "flop", "turn", "river"];
@@ -124,6 +126,10 @@ export function startHand(args: {
   button: number;
   handNumber: number;
   seed: string;
+  buyIn?: number;
+  autoRebuy?: boolean;
+  sb?: number;
+  bb?: number;
 }): TableState {
   const rng = new Rng(`${args.seed}:h${args.handNumber}`);
   const deck = shuffleDeck(rng);
@@ -137,10 +143,12 @@ export function startHand(args: {
     actedStreet: false,
     stack: p.stack,
   }));
+  const small = args.sb ?? SB;
+  const big = args.bb ?? BB;
   const buyIn = args.buyIn ?? START_STACK;
   const autoRebuy = args.autoRebuy !== false;
   for (const p of players) {
-    if (autoRebuy && p.stack < BB) {
+    if (autoRebuy && p.stack < big) {
       p.stack = buyIn;
       p.folded = false;
     }
@@ -154,8 +162,8 @@ export function startHand(args: {
     deck,
     button: args.button,
     players,
-    currentBet: BB,
-    lastRaiseSize: BB,
+    currentBet: big,
+    lastRaiseSize: big,
     lastFullRaiser: null,
     toAct: null,
     playersToAct: 0,
@@ -163,6 +171,8 @@ export function startHand(args: {
     actionLog: [],
     result: null,
     startedAt: Date.now(),
+    sb: small,
+    bb: big,
   };
 
   for (const p of state.players) {
@@ -171,16 +181,16 @@ export function startHand(args: {
 
   const n = seatCount(state);
   if (n === 2) {
-    post(state, state.button, SB);
+    post(state, state.button, small);
     const bbSeat = nextSeat(state.button, n);
-    post(state, bbSeat, BB);
+    post(state, bbSeat, big);
     state.lastFullRaiser = bbSeat;
     state.toAct = firstLiveFrom(state, state.button);
   } else {
     const sb = nextSeat(state.button, n);
     const bb = nextSeat(sb, n);
-    post(state, sb, SB);
-    post(state, bb, BB);
+    post(state, sb, small);
+    post(state, bb, big);
     state.lastFullRaiser = bb;
     const utg = nextSeat(bb, n);
     state.toAct = firstLiveFrom(state, utg);
@@ -194,7 +204,7 @@ export function legalActions(state: TableState, seat: number): LegalActions {
   const p = state.players[seat];
   const toCall = Math.max(0, state.currentBet - p.contributedStreet);
   const pot = potTotal(state);
-  const minBet = Math.min(p.stack, BB);
+  const minBet = Math.min(p.stack, state.bb || BB);
   const minRaiseTo = Math.min(p.stack + p.contributedStreet, state.currentBet + state.lastRaiseSize);
   const maxRaiseTo = p.stack + p.contributedStreet;
   const canCall = toCall > 0 && p.stack > 0;
@@ -345,7 +355,7 @@ function nextStreet(state: TableState): void {
     p.actedStreet = false;
   }
   state.currentBet = 0;
-  state.lastRaiseSize = BB;
+  state.lastRaiseSize = state.bb || BB;
   state.lastFullRaiser = null;
   if (nxt === "flop") burnAndDeal(state, 3);
   else burnAndDeal(state, 1);
@@ -464,7 +474,7 @@ function showdown(state: TableState): void {
 }
 
 export function sizingPresets(legal: LegalActions): { label: string; to: number }[] {
-  const pot = Math.max(legal.pot, BB);
+  const pot = Math.max(legal.pot, 100);
   const toCall = legal.callAmount;
   const maxTo = legal.maxRaiseTo;
   const candidates = [
@@ -485,19 +495,23 @@ export function sizingPresets(legal: LegalActions): { label: string; to: number 
 }
 
 export function describeAction(action: Action): string {
-  const bb = (n: number) => `${Math.round((n / BB) * 10) / 10}bb`;
+  const money = (n: number) => {
+    const d = n / 100;
+    const r = Math.round(d * 100) / 100;
+    return "$" + (r % 1 === 0 ? r.toFixed(0) : r.toFixed(2).replace(/0$/, ""));
+  };
   switch (action.type) {
     case "fold":
       return "폴드";
     case "check":
       return "체크";
     case "call":
-      return `콜 ${bb(action.amount)}`;
+      return `콜 ${money(action.amount)}`;
     case "bet":
-      return `벳 ${bb(action.amount)}`;
+      return `벳 ${money(action.amount)}`;
     case "raise":
-      return `레이즈 ${bb(action.amount)}`;
+      return `레이즈 ${money(action.amount)}`;
     case "allin":
-      return `올인 ${bb(action.amount)}`;
+      return `올인 ${money(action.amount)}`;
   }
 }

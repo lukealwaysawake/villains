@@ -10,9 +10,28 @@ export interface RoomConfig {
   name: string;
   seats: 2 | 4 | 6;
   buyInBb: 50 | 100 | 200;
+  sb: number;
+  bb: number;
+  startStack: number;
+  buyInLimit: number;
   autoRebuy: boolean;
   speed: number;
   villainIds?: string[];
+}
+
+export function defaultRoom(partial: Partial<RoomConfig> = {}): RoomConfig {
+  return {
+    name: "캐시 테이블",
+    seats: 6,
+    buyInBb: 100,
+    sb: 0.5,
+    bb: 1,
+    startStack: 100,
+    buyInLimit: 0,
+    autoRebuy: true,
+    speed: 1,
+    ...partial,
+  };
 }
 
 export type HudMode = "learn" | "standard" | "split" | "off";
@@ -74,6 +93,7 @@ export interface Session {
   liveTable?: TableState | null;
   room?: RoomConfig;
   buyInChips: number;
+  heroBuyIns: number;
 }
 
 export interface Profile {
@@ -225,14 +245,12 @@ export function canUsePreset(profile: Profile, presetId: string): boolean {
 
 export function createSession(villainIds: string[], presetId?: string, opts?: { tutorial?: boolean; seedClient?: string; room?: RoomConfig }): Session {
   const fair = createFairness(opts?.seedClient);
-  const room: RoomConfig = opts?.room ?? {
+  const room: RoomConfig = defaultRoom({
     name: presetId === "intro" ? "입문 테이블" : "캐시 테이블",
     seats: (villainIds.length + 1 <= 2 ? 2 : villainIds.length + 1 <= 4 ? 4 : 6),
-    buyInBb: 100,
-    autoRebuy: true,
-    speed: 1,
-  };
-  const buyInChips = room.buyInBb * 100;
+    ...(opts?.room ?? {}),
+  });
+  const buyInChips = Math.round((room.startStack || room.buyInBb) * 100);
   const ids = ["hero", ...villainIds].slice(0, room.seats);
   const players = createFreshPlayers(ids, buyInChips);
   const stacks = Object.fromEntries(players.map((p) => [p.id, p.stack]));
@@ -261,6 +279,7 @@ export function createSession(villainIds: string[], presetId?: string, opts?: { 
     coachOn: !!opts?.tutorial,
     room,
     buyInChips,
+    heroBuyIns: 1,
   };
 }
 
@@ -269,11 +288,16 @@ export function dealNext(session: Session): TableState {
   session.button = (session.button + 1) % (session.villainIds.length + 1);
   const ids = ["hero", ...session.villainIds];
   const players = createFreshPlayers(ids).map((p) => ({ ...p, stack: session.stacks[p.id] ?? p.stack }));
+  const room = session.room;
   return startHand({
     players,
     button: session.button,
     handNumber: session.handNumber,
     seed: session.seed,
+    buyIn: session.buyInChips,
+    autoRebuy: room?.autoRebuy !== false,
+    sb: Math.round((room?.sb ?? 0.5) * 100),
+    bb: Math.round((room?.bb ?? 1) * 100),
   });
 }
 
