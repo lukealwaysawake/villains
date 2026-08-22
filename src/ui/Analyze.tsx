@@ -49,7 +49,12 @@ export function Analyze({
                 최근 세션 VPIP {vpip}% · PFR {pfr}% · 착취 놓침 {last?.missedExploits ?? 0}
               </div>
             )}
-            {habits.length === 0 && <p className="kicker">아직 없어요. 핸드 몇 개만 치면 생깁니다.</p>}
+            {habits.length === 0 && (
+              <div className="empty">
+                <img src="/brand/mark.jpg" alt="" />
+                <p className="kicker">아직 없어요. 핸드 몇 개만 치면 생깁니다.</p>
+              </div>
+            )}
             {habits.map((h) => (
               <div key={h.tag} className="task-row">
                 <div style={{ flex: 1 }}>

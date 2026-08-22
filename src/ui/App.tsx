@@ -134,7 +134,10 @@ export function App() {
 function Onboarding({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState(0);
   return (
-    <section className="screen">
+    <section className="screen splash">
+      <div className="splash-hero" aria-hidden="true" />
+      <div className="splash-shade" aria-hidden="true" />
+      <img className="splash-mark" src="/brand/mark.jpg" alt="" />
       <div className="eyebrow">VILLAINS</div>
       <h1 className="brand on-title">읽을 수 있는<br/>상대</h1>
       {step === 0 && (
@@ -184,9 +187,15 @@ function Home({
   return (
     <section className="screen">
       <div className="atmosphere" aria-hidden="true"><i /><i /><i /></div>
-      <div className="topbar">
-        <div className="brand">VILLAINS<small>착취 연습</small></div>
-        <span className="tier">{profile.lifetimeHands}핸드</span>
+      <div className="home-hero">
+        <img src="/brand/hero.jpg" alt="" />
+        <div className="home-hero-copy">
+          <img src="/brand/mark.jpg" alt="" />
+          <div>
+            <b>VILLAINS</b>
+            <small>착취 연습 · {profile.lifetimeHands}핸드</small>
+          </div>
+        </div>
       </div>
       {session && session.handsPlayed > 0 && (
         <button className="card" style={{ width: "100%", textAlign: "left" }} onClick={resume}>
