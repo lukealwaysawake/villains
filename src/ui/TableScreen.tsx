@@ -290,14 +290,14 @@ export function TableScreen({
       {heroTurn && legal && (
         <div className="action">
           <div className="acts">
-            <button className="btn fold" disabled={!legal.canFold && !legal.canCheck} onClick={() => act(legal.canCheck ? "check" : "fold")}>
+            <button className="btn fold glass" disabled={!legal.canFold && !legal.canCheck} onClick={() => act(legal.canCheck ? "check" : "fold")}>
               {legal.canCheck ? "체크" : "폴드"}
             </button>
-            <button className="btn call" disabled={!legal.canCall && !legal.canCheck} onClick={() => act(legal.canCall ? "call" : "check")}>
+            <button className="btn call glass" disabled={!legal.canCall && !legal.canCheck} onClick={() => act(legal.canCall ? "call" : "check")}>
               {legal.canCall ? `콜 ${bb(legal.callAmount)}` : "체크"}
             </button>
             <button
-              className="btn raise"
+              className="btn raise launch"
               disabled={!legal.canBet}
               onClick={() => {
                 setRaiseOn((v) => !v);
@@ -317,7 +317,7 @@ export function TableScreen({
                 ))}
               </div>
               <input type="range" min={legal.minBet} max={legal.maxRaiseTo} step={BB / 2} value={raiseTo} onChange={(e) => setRaiseTo(Number(e.target.value))} />
-              <button className="btn primary wide" style={{ marginTop: 8 }} onClick={() => act(legal.callAmount > 0 ? "raise" : "bet", raiseTo)}>
+              <button className="btn launch wide" style={{ marginTop: 8 }} onClick={() => act(legal.callAmount > 0 ? "raise" : "bet", raiseTo)}>
                 {bb(raiseTo)} 확인
               </button>
             </>
@@ -326,7 +326,7 @@ export function TableScreen({
       )}
 
       {table.street === "complete" && (
-        <button className="btn primary wide" onClick={nextHand}>다음 핸드</button>
+        <button className="btn launch wide" onClick={nextHand}>다음 핸드</button>
       )}
 
       {openReview && badge && (

@@ -159,6 +159,7 @@ function Home({
 
   return (
     <section className="screen">
+      <div className="atmosphere" aria-hidden="true"><i /><i /><i /></div>
       <div className="topbar">
         <div className="brand">VILLAINS<small>NLHE 착취 트레이너</small></div>
         <span className="tier">{profile.lifetimeHands} HANDS · 오늘 {remainingDailyHands(profile) >= 99999 ? "∞" : remainingDailyHands(profile)}</span>
@@ -176,7 +177,7 @@ function Home({
         <div className="eyebrow">오늘의 집중</div>
         <p className="kicker" style={{ marginTop: 8 }}>{focus}</p>
       </div>
-      <button className="btn primary wide" style={{ margin: "12px 0" }} onClick={() => go("lobby")}>테이블 앉기</button>
+      <button className="btn launch wide" style={{ margin: "12px 0" }} onClick={() => go("lobby")}>테이블 앉기</button>
       <div className="row" style={{ margin: "8px 0 10px" }}>
         <b>빌런 숙련도</b>
         <button className="btn ghost" onClick={() => go("dex")}>도감</button>
@@ -256,7 +257,7 @@ function Lobby({
             );
           })}
         </div>
-        <button className="btn primary wide" style={{ marginTop: 10 }} disabled={custom.length !== 5} onClick={() => start(custom)}>
+        <button className="btn launch wide" style={{ marginTop: 10 }} disabled={custom.length !== 5} onClick={() => start(custom)}>
           커스텀 시작 ({custom.length}/5)
         </button>
       </div>
@@ -305,7 +306,7 @@ function Report({ session, profile, go }: { session: Session; profile: Profile; 
         ))}
       </div>}
       <p className="kicker">놓친 착취 {session.missedExploits ?? 0}개 · 놓친 리뷰 {profile.reviewQueue.filter((r) => !r.viewed).length}개</p>
-      <button className="btn primary wide" onClick={() => go("home")}>홈으로</button>
+      <button className="btn launch wide" onClick={() => go("home")}>홈으로</button>
       <button className="btn wide" style={{ marginTop: 8 }} onClick={() => go("reviews")}>리뷰 몰아보기</button>
     </section>
   );
@@ -551,5 +552,7 @@ function Fairness({ session, go }: { session: Session | null; go: (s: Screen) =>
       </div>
       <button className="btn wide" onClick={() => go("settings")}>설정으로</button>
     </section>
+  );
+}
   );
 }

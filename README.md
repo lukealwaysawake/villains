@@ -20,3 +20,5 @@ npm run dev
 ## 배포
 
 Vercel 정적 웹앱. 프레임워크는 Vite.
+
+UI motion/button language adapted from [ThreeUI Community](https://github.com/MengTo/threeui) (MIT).

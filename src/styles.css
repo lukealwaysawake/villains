@@ -469,3 +469,129 @@ input[type="range"] { width: 100%; accent-color: var(--gold); margin-top: 8px; }
     transition: none !important;
   }
 }
+
+/* ThreeUI Community-inspired controls (MIT, adapted, no WebGL). */
+.atmosphere {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+}
+.atmosphere i {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(54px);
+  background: rgba(212, 175, 88, 0.08);
+}
+.atmosphere i:nth-child(1) { width: 220px; height: 160px; top: -40px; left: -40px; }
+.atmosphere i:nth-child(2) { width: 180px; height: 180px; right: -50px; top: 28%; background: rgba(111, 191, 138, 0.06); }
+.atmosphere i:nth-child(3) { width: 240px; height: 140px; bottom: 80px; left: 20%; background: rgba(255,255,255,0.03); }
+
+.screen { position: relative; }
+.screen > *:not(.atmosphere) { position: relative; z-index: 1; }
+
+.btn.launch {
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+  background: linear-gradient(to bottom, #fde68a, #fcd34d, #f59e0b);
+  color: #451a03;
+  border: 0;
+  font-weight: 700;
+  box-shadow:
+    0 0 0 1px rgba(251, 191, 36, 0.5),
+    0 4px 0 #b45309,
+    0 10px 15px -3px rgba(0, 0, 0, 0.5);
+}
+.btn.launch::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  background: rgba(245, 158, 11, 0.4);
+  filter: blur(10px);
+  opacity: 0.45;
+  z-index: -1;
+  transition: opacity 0.35s ease;
+}
+.btn.launch:active {
+  transform: translateY(2px);
+  box-shadow:
+    0 0 0 1px rgba(251, 191, 36, 0.5),
+    0 2px 0 #b45309;
+}
+.btn.launch:active::before { opacity: 0.75; }
+
+.btn.glass {
+  background: rgba(23, 23, 23, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 2px 4px 16px rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  position: relative;
+  overflow: hidden;
+}
+.btn.glass::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  opacity: 0.28;
+  -webkit-mask-image: linear-gradient(170deg, #000, transparent 55%);
+  mask-image: linear-gradient(170deg, #000, transparent 55%);
+  pointer-events: none;
+}
+
+.btn.lumen {
+  background: linear-gradient(90deg, #2a1d08 0%, #5a3d10 28%, #a67c2d 58%, #ead28a 100%);
+  color: #fff8e8;
+  border: 0;
+  outline: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 4px 22px rgba(166, 124, 45, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.btn.spin {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.btn.spin > span { position: relative; z-index: 1; }
+.btn.spin::before {
+  content: "";
+  position: absolute;
+  inset: -80%;
+  background: conic-gradient(from 180deg, transparent 55%, rgba(240, 212, 138, 0.7), transparent 78%);
+  animation: tui-orbit 2.8s linear infinite;
+  z-index: 0;
+}
+.btn.spin::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: inherit;
+  z-index: 0;
+}
+
+.acts .fold { background: rgba(58, 34, 32, 0.72); }
+.acts .call { background: rgba(36, 53, 44, 0.72); }
+.acts .raise.launch { color: #451a03; }
+
+.vcell {
+  transform: perspective(700px) rotateX(0deg);
+  transition: transform 0.22s var(--ease), border-color 0.22s var(--ease);
+}
+.vcell:active { transform: perspective(700px) rotateX(8deg) scale(0.98); }
+
+.nav {
+  background: rgba(12, 13, 16, 0.72);
+  box-shadow: inset 2px 4px 16px rgba(255, 255, 255, 0.04);
+}
+
+@keyframes tui-orbit {
+  to { transform: rotate(360deg); }
+}
