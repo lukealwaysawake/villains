@@ -16,6 +16,7 @@ import {
   saveCombo,
   exportProfile,
   importProfile,
+  topHabits,
   type Profile,
   type Screen,
   type Session,

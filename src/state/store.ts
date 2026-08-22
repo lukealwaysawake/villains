@@ -89,6 +89,7 @@ export interface Profile {
   firstReviewDone: boolean;
   sessionHistory: SessionSummary[];
   handLog: HandLog[];
+  habits: HabitRecord[];
 }
 
 export interface SessionSummary {
@@ -110,6 +111,18 @@ export interface HandLog {
   heroDelta: number;
   severity: string;
   headline: string;
+  leak?: string;
+  villainId?: string;
+}
+
+export interface HabitRecord {
+  tag: string;
+  leak?: string;
+  count: number;
+  totalLossBb: number;
+  lastAt: number;
+  villains: string[];
+  examples: { at: number; handNumber: number; body: string; loss: number }[];
 }
 
 const KEY = "villains.v1";
@@ -140,6 +153,7 @@ export function defaultProfile(): Profile {
     firstReviewDone: false,
     sessionHistory: [],
     handLog: [],
+    habits: [],
   };
 }
 
@@ -158,6 +172,7 @@ export function loadProfile(): Profile {
       savedCombos: parsed.savedCombos ?? [],
       sessionHistory: parsed.sessionHistory ?? [],
       handLog: parsed.handLog ?? [],
+      habits: parsed.habits ?? [],
     };
   } catch {
     return defaultProfile();
@@ -303,9 +318,14 @@ export function commitHand(profile: Profile, session: Session, state: TableState
       heroDelta: delta,
       severity: review.severity,
       headline: review.headline,
+      leak: review.leak,
+      villainId: review.villainId,
     },
     ...(profile.handLog ?? []),
   ].slice(0, 200);
+  if (review.severity !== "green") {
+    profile.habits = recordHabit(profile.habits ?? [], review);
+  }
 
   for (const id of session.villainIds) {
     const m = profile.mastery[id] ?? emptyMastery();
@@ -424,6 +444,7 @@ export function importProfile(raw: string): Profile {
     savedCombos: parsed.savedCombos ?? [],
     sessionHistory: parsed.sessionHistory ?? [],
     handLog: parsed.handLog ?? [],
+      habits: parsed.habits ?? [],
   };
   saveProfile(next);
   return next;
@@ -439,4 +460,46 @@ export function canShowHint(profile: Profile, id: string): boolean {
   if (profile.settings.unlockAll || profile.settings.isPro) return true;
   const m = profile.mastery[id] ?? emptyMastery();
   return m.sessionsPlayed >= 3 || m.handsPlayed >= 60;
+}
+
+export function recordHabit(habits: HabitRecord[], review: ReviewCard): HabitRecord[] {
+  const tag = review.headline || "기타 실수";
+  const now = Date.now();
+  const list = [...habits];
+  const idx = list.findIndex((h) => h.tag === tag);
+  const example = {
+    at: now,
+    handNumber: review.handNumber,
+    body: review.body,
+    loss: review.totalLossBb,
+  };
+  if (idx >= 0) {
+    const cur = list[idx];
+    const villains = cur.villains.slice();
+    if (review.villainId && !villains.includes(review.villainId)) villains.push(review.villainId);
+    list[idx] = {
+      ...cur,
+      count: cur.count + 1,
+      totalLossBb: Math.round((cur.totalLossBb + review.totalLossBb) * 10) / 10,
+      lastAt: now,
+      leak: cur.leak ?? review.leak,
+      villains,
+      examples: [example, ...cur.examples].slice(0, 8),
+    };
+  } else {
+    list.push({
+      tag,
+      leak: review.leak,
+      count: 1,
+      totalLossBb: review.totalLossBb,
+      lastAt: now,
+      villains: review.villainId ? [review.villainId] : [],
+      examples: [example],
+    });
+  }
+  return list.sort((a, b) => b.totalLossBb - a.totalLossBb).slice(0, 40);
+}
+
+export function topHabits(profile: Profile, minCount = 2): HabitRecord[] {
+  return (profile.habits ?? []).filter((h) => h.count >= minCount).slice(0, 8);
 }

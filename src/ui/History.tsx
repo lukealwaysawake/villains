@@ -4,6 +4,7 @@ import type { Profile, Screen } from "../state/store";
 export function History({ profile, go }: { profile: Profile; go: (s: Screen) => void }) {
   const sessions = profile.sessionHistory ?? [];
   const hands = profile.handLog ?? [];
+  const habits = [...(profile.habits ?? [])].sort((a, b) => b.totalLossBb - a.totalLossBb);
   const lifeBb = sessions.reduce((s, x) => s + x.bbDelta, 0);
   return (
     <section className="screen">
@@ -16,6 +17,24 @@ export function History({ profile, go }: { profile: Profile; go: (s: Screen) => 
         <div className="card"><div className="muted">누적 핸드</div><b>{profile.lifetimeHands}</b></div>
         <div className="card"><div className="muted">세션</div><b>{sessions.length}</b></div>
         <div className="card"><div className="muted">세션 합</div><b className={lifeBb >= 0 ? "good" : "bad"}>{lifeBb >= 0 ? "+" : ""}{lifeBb.toFixed(1)}</b></div>
+      </div>
+      <div className="insight">
+        <div className="row"><span className="idx">00</span><b>내 패턴 분석</b></div>
+        <p className="kicker">노란/빨간 회고만 모아 습관으로 쌓습니다. 한 번 뜬 실수도 남고, 두 번 이상이면 습관으로 봅니다.</p>
+        {habits.length === 0 && <p className="kicker">아직 나쁜 습관 기록이 없습니다. 핸드를 치면 회고가 여기 쌓입니다.</p>}
+        {habits.map((h) => (
+          <div key={h.tag} className="task-row">
+            <div style={{ flex: 1 }}>
+              <b>{h.tag}</b>
+              <div className="kicker">
+                {h.count}회 · 손실 -{h.totalLossBb.toFixed(1)}bb
+                {h.villains.length ? " · " + h.villains.map((id) => VILLAIN_BY_ID[id]?.name ?? id).join(", ") : ""}
+              </div>
+              {h.examples[0] && <div className="kicker">{h.examples[0].body}</div>}
+            </div>
+            <span className="status">{h.count >= 2 ? "습관" : "1회"}</span>
+          </div>
+        ))}
       </div>
       <div className="card">
         <div className="row"><span className="idx">01</span><b>세션</b></div>
