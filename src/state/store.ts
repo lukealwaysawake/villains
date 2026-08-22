@@ -63,6 +63,8 @@ export interface Session {
   missedExploits: number;
   coachOn: boolean;
   liveTable?: TableState | null;
+  room?: RoomConfig;
+  buyInChips: number;
 }
 
 export interface Profile {
@@ -197,16 +199,24 @@ export function canUsePreset(profile: Profile, presetId: string): boolean {
   return presetId === "intro";
 }
 
-export function createSession(villainIds: string[], presetId?: string, opts?: { tutorial?: boolean; seedClient?: string }): Session {
+export function createSession(villainIds: string[], presetId?: string, opts?: { tutorial?: boolean; seedClient?: string; room?: RoomConfig }): Session {
   const fair = createFairness(opts?.seedClient);
-  const ids = ["hero", ...villainIds];
-  const players = createFreshPlayers(ids);
+  const room: RoomConfig = opts?.room ?? {
+    name: presetId === "intro" ? "입문 테이블" : "캐시 테이블",
+    seats: (villainIds.length + 1 <= 2 ? 2 : villainIds.length + 1 <= 4 ? 4 : 6),
+    buyInBb: 100,
+    autoRebuy: true,
+    speed: 1,
+  };
+  const buyInChips = room.buyInBb * 100;
+  const ids = ["hero", ...villainIds].slice(0, room.seats);
+  const players = createFreshPlayers(ids, buyInChips);
   const stacks = Object.fromEntries(players.map((p) => [p.id, p.stack]));
   const runtimes = Object.fromEntries(villainIds.map((id, i) => [id, createRuntime(id, i + 1)]));
   return {
     id: fair.finalSeed,
     presetId,
-    villainIds,
+    villainIds: ids.slice(1),
     seed: fair.finalSeed,
     seedClient: fair.seedClient,
     seedServerHash: fair.seedServerHash,
@@ -225,6 +235,8 @@ export function createSession(villainIds: string[], presetId?: string, opts?: { 
     tutorial: !!opts?.tutorial,
     missedExploits: 0,
     coachOn: !!opts?.tutorial,
+    room,
+    buyInChips,
   };
 }
 
@@ -416,6 +428,19 @@ export function persistLive(profile: Profile, session: Session, table: TableStat
 
 export function canShowHint(profile: Profile, id: string): boolean {
   if (profile.settings.unlockAll || profile.settings.isPro) return true;
+  const m = profile.mastery[id] ?? emptyMastery();
+  return m.sessionsPlayed >= 3 || m.handsPlayed >= 60;
+}
+ings.isPro) return true;
+  const m = profile.mastery[id] ?? emptyMastery();
+  return m.sessionsPlayed >= 3 || m.handsPlayed >= 60;
+}
+
+  if (profile.settings.unlockAll || profile.settings.isPro) return true;
+  const m = profile.mastery[id] ?? emptyMastery();
+  return m.sessionsPlayed >= 3 || m.handsPlayed >= 60;
+}
+ings.isPro) return true;
   const m = profile.mastery[id] ?? emptyMastery();
   return m.sessionsPlayed >= 3 || m.handsPlayed >= 60;
 }

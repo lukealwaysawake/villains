@@ -96,11 +96,11 @@ function firstLiveFrom(state: TableState, from: number): number | null {
   return null;
 }
 
-export function createFreshPlayers(ids: string[]): PlayerState[] {
+export function createFreshPlayers(ids: string[], stack = START_STACK): PlayerState[] {
   return ids.map((id, seat) => ({
     id,
     seat,
-    stack: START_STACK,
+    stack,
     hole: null,
     folded: false,
     allIn: false,
@@ -135,10 +135,15 @@ export function startHand(args: {
     contributedStreet: 0,
     contributedHand: 0,
     actedStreet: false,
-    stack: p.stack <= 0 ? START_STACK : p.stack,
+    stack: p.stack,
   }));
+  const buyIn = args.buyIn ?? START_STACK;
+  const autoRebuy = args.autoRebuy !== false;
   for (const p of players) {
-    if (p.stack < BB) p.stack = START_STACK;
+    if (autoRebuy && p.stack < BB) {
+      p.stack = buyIn;
+      p.folded = false;
+    }
   }
 
   const state: TableState = {
@@ -165,13 +170,21 @@ export function startHand(args: {
   }
 
   const n = seatCount(state);
-  const sb = nextSeat(state.button, n);
-  const bb = nextSeat(sb, n);
-  post(state, sb, SB);
-  post(state, bb, BB);
-  state.lastFullRaiser = bb;
-  const utg = nextSeat(bb, n);
-  state.toAct = firstLiveFrom(state, utg);
+  if (n === 2) {
+    post(state, state.button, SB);
+    const bbSeat = nextSeat(state.button, n);
+    post(state, bbSeat, BB);
+    state.lastFullRaiser = bbSeat;
+    state.toAct = firstLiveFrom(state, state.button);
+  } else {
+    const sb = nextSeat(state.button, n);
+    const bb = nextSeat(sb, n);
+    post(state, sb, SB);
+    post(state, bb, BB);
+    state.lastFullRaiser = bb;
+    const utg = nextSeat(bb, n);
+    state.toAct = firstLiveFrom(state, utg);
+  }
   state.playersToAct = actorsLeft(state).length;
   if (livePlayers(state).length < 2) finishUncontested(state);
   return state;
@@ -486,5 +499,20 @@ export function describeAction(action: Action): string {
       return `레이즈 ${bb(action.amount)}`;
     case "allin":
       return `올인 ${bb(action.amount)}`;
+  }
+}
+     return `올인 ${bb(action.amount)}`;
+  }
+}
+urn `콜 ${bb(action.amount)}`;
+    case "bet":
+      return `벳 ${bb(action.amount)}`;
+    case "raise":
+      return `레이즈 ${bb(action.amount)}`;
+    case "allin":
+      return `올인 ${bb(action.amount)}`;
+  }
+}
+     return `올인 ${bb(action.amount)}`;
   }
 }

@@ -19,12 +19,14 @@ import {
   type Profile,
   type Screen,
   type Session,
+  type RoomConfig,
 } from "../state/store";
 import { verifyCommit } from "../engine/fairness";
 import { roundRobin } from "../engine/sim";
 import { Avatar, Nav, Stars, signedBb } from "./bits";
 import { TableScreen } from "./TableScreen";
 import { History } from "./History";
+import { CreateRoom } from "./CreateRoom";
 
 export function App() {
   const [profile, setProfileState] = useState<Profile>(() => loadProfile());
@@ -42,10 +44,10 @@ export function App() {
     setScreen(s);
   }
 
-  function start(ids: string[], presetId?: string, tutorial = false) {
+  function start(ids: string[], presetId?: string, tutorial = false, room?: RoomConfig) {
     const archived = archiveSession({ ...profile }, session);
     setProfile(archived);
-    const s = createSession(ids, presetId, { tutorial });
+    const s = createSession(ids, presetId, { tutorial, room });
     setSession(s);
     setScreen("table");
   }
@@ -115,7 +117,14 @@ export function App() {
       {screen === "settings" && <SettingsScreen profile={profile} setProfile={setProfile} go={go} />}
       {screen === "fairness" && <Fairness session={session} go={go} />}
       {screen === "history" && <History profile={profile} go={go} />}
-      <Nav screen={screen} go={go} hidden={screen === "table" || screen === "onboarding"} />
+      {screen === "create-room" && (
+        <CreateRoom
+          profile={profile}
+          onBack={() => go("lobby")}
+          onCreate={(room, ids) => start(ids, "custom", false, room)}
+        />
+      )}
+      <Nav screen={screen} go={go} hidden={screen === "table" || screen === "onboarding" || screen === "create-room"} />
     </div>
   );
 }
@@ -238,6 +247,7 @@ function Lobby({
         <div className="eyebrow">테이블 선택</div>
         <span />
       </div>
+      <button className="btn launch wide" style={{ marginBottom: 12 }} onClick={() => go("create-room")}>방 만들기</button>
       {PRESETS.map((p) => {
         const locked = p.villains.some((id) => !isUnlocked(profile, id)) || !canUsePreset(profile, p.id) || p.villains.some((id) => !canUseVillain(profile, id));
         return (

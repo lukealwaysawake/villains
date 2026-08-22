@@ -19,9 +19,17 @@ function visualClass(seat: number, n: number): string {
 function deal(s: Session): TableState {
   s.handNumber += 1;
   if (s.handNumber > 1) s.button = (s.button + 1) % (s.villainIds.length + 1);
+  const buyIn = s.buyInChips ?? 10000;
   const ids = ["hero", ...s.villainIds];
-  const players = createFreshPlayers(ids).map((p) => ({ ...p, stack: s.stacks[p.id] ?? p.stack }));
-  return startHand({ players, button: s.button, handNumber: s.handNumber, seed: s.seed });
+  const players = createFreshPlayers(ids, buyIn).map((p) => ({ ...p, stack: s.stacks[p.id] ?? buyIn }));
+  return startHand({
+    players,
+    button: s.button,
+    handNumber: s.handNumber,
+    seed: s.seed,
+    buyIn,
+    autoRebuy: s.room?.autoRebuy !== false,
+  });
 }
 
 export function TableScreen({
@@ -184,6 +192,10 @@ export function TableScreen({
       setBlocked("오늘 무료 핸드를 다 썼습니다.");
       return;
     }
+    if (sessionRef.current.room && sessionRef.current.room.autoRebuy === false && (sessionRef.current.stacks.hero ?? 0) < 100) {
+      setBlocked("바이인이 소진됐습니다. 세션을 종료합니다.");
+      return;
+    }
     const s = structuredClone(sessionRef.current);
     setBadge(null);
     setOpenReview(false);
@@ -230,6 +242,8 @@ export function TableScreen({
       <div className="playtop">
         <div className="left">
           <button className="chip" onClick={onExit}>종료</button>
+          {session.room?.name ? <span className="chip">{session.room.name}</span> : null}
+          {session.room ? <span className="chip">{session.room.buyInBb}bb</span> : null}
           <span className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</span>
         </div>
         <div className="right">
