@@ -5,7 +5,16 @@ import { PRESETS, STARTER_UNLOCKS, VILLAIN_BY_ID, VILLAINS } from "../villains/c
 import { createRuntime, type VillainRuntime } from "../villains/types";
 import { detectPatterns, type ReviewCard } from "../review/analyze";
 
-export type Screen = "home" | "lobby" | "table" | "report" | "dex" | "detail" | "reviews" | "settings" | "onboarding" | "fairness" | "history";
+export type Screen = "home" | "lobby" | "table" | "report" | "dex" | "detail" | "reviews" | "settings" | "onboarding" | "fairness" | "history" | "create-room";
+export interface RoomConfig {
+  name: string;
+  seats: 2 | 4 | 6;
+  buyInBb: 50 | 100 | 200;
+  autoRebuy: boolean;
+  speed: number;
+  villainIds?: string[];
+}
+
 export type HudMode = "learn" | "standard" | "split" | "off";
 export type ReviewPause = "off" | "red" | "yellow" | "all";
 
@@ -428,19 +437,6 @@ export function persistLive(profile: Profile, session: Session, table: TableStat
 
 export function canShowHint(profile: Profile, id: string): boolean {
   if (profile.settings.unlockAll || profile.settings.isPro) return true;
-  const m = profile.mastery[id] ?? emptyMastery();
-  return m.sessionsPlayed >= 3 || m.handsPlayed >= 60;
-}
-ings.isPro) return true;
-  const m = profile.mastery[id] ?? emptyMastery();
-  return m.sessionsPlayed >= 3 || m.handsPlayed >= 60;
-}
-
-  if (profile.settings.unlockAll || profile.settings.isPro) return true;
-  const m = profile.mastery[id] ?? emptyMastery();
-  return m.sessionsPlayed >= 3 || m.handsPlayed >= 60;
-}
-ings.isPro) return true;
   const m = profile.mastery[id] ?? emptyMastery();
   return m.sessionsPlayed >= 3 || m.handsPlayed >= 60;
 }
