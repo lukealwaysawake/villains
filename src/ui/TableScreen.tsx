@@ -255,6 +255,12 @@ export function TableScreen({
               onClick={() => p.id !== "hero" && setHudSeat(hudSeat === p.seat ? null : p.seat)}
             >
               {speech?.villainId === p.id && <div className="bubble">{speech.line}</div>}
+              {p.id === "hero" && hero.hole && (
+                <div className="hole">
+                  <PlayingCard key={`${table.handNumber}-a`} card={hero.hole[0]} large />
+                  <PlayingCard key={`${table.handNumber}-b`} card={hero.hole[1]} large />
+                </div>
+              )}
               <Avatar id={p.id} />
               <div className="seat-card">
                 <div className="nm">{p.id === "hero" ? "나" : def?.name} · {pos}</div>
@@ -267,13 +273,6 @@ export function TableScreen({
             </div>
           );
         })}
-
-        <div className="seat s0" style={{ pointerEvents: "none", bottom: 72 }}>
-          <div className="hole">
-            {hero.hole && <PlayingCard card={hero.hole[0]} large />}
-            {hero.hole && <PlayingCard card={hero.hole[1]} large />}
-          </div>
-        </div>
       </div>
 
       {coach && <div className="toast">{coach}</div>}
@@ -385,5 +384,8 @@ export function TableScreen({
         {table.actionLog.slice(-3).map((a) => `${a.actorId === "hero" ? "나" : VILLAIN_BY_ID[a.actorId]?.name ?? a.actorId} ${describeAction(a)}`).join(" · ")}
       </div>
     </section>
+  );
+}
+/section>
   );
 }

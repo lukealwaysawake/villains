@@ -1,16 +1,22 @@
 import { useMemo, useState } from "react";
 import { PRESETS, VILLAINS, VILLAIN_BY_ID } from "../villains/catalog";
 import {
+  canUsePreset,
+  canUseVillain,
   createSession,
+  isPro,
   isUnlocked,
   loadProfile,
   masteryPct,
+  remainingDailyHands,
   saveProfile,
   sessionPatterns,
   type Profile,
   type Screen,
   type Session,
 } from "../state/store";
+import { verifyCommit } from "../engine/fairness";
+import { roundRobin } from "../engine/sim";
 import { Avatar, Nav, Stars, signedBb } from "./bits";
 import { TableScreen } from "./TableScreen";
 
