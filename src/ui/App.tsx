@@ -74,6 +74,7 @@ export function App() {
           setCustom={setCustom}
           start={start}
           back={() => go("home")}
+          go={go}
         />
       )}
       {screen === "table" && session && (
@@ -112,6 +113,7 @@ export function App() {
         <Reviews
           profile={profile}
           setProfile={setProfile}
+          go={go}
         />
       )}
       {screen === "settings" && <SettingsScreen profile={profile} setProfile={setProfile} go={go} />}
@@ -230,6 +232,7 @@ function Lobby({
   setCustom,
   start,
   back,
+  go,
 }: {
   profile: Profile;
   setProfile: (p: Profile) => void;
@@ -237,6 +240,7 @@ function Lobby({
   setCustom: (ids: string[]) => void;
   start: (ids: string[], preset?: string) => void;
   back: () => void;
+  go: (s: Screen) => void;
 }) {
   return (
     <section className="screen">
@@ -457,21 +461,22 @@ function Detail({
   );
 }
 
-function Reviews({ profile, setProfile }: { profile: Profile; setProfile: (p: Profile) => void }) {
+function Reviews({ profile, setProfile, go }: { profile: Profile; setProfile: (p: Profile) => void; go: (s: Screen) => void }) {
   const [i, setI] = useState(0);
   const list = profile.reviewQueue;
   const cur = list[i];
   if (!cur) {
     return (
       <section className="screen">
+        <div className="topbar"><button className="btn glass" onClick={() => go("analyze")}>분석</button><div className="eyebrow">리뷰</div><span /></div>
         <h1>리뷰 큐</h1>
-        <p className="kicker">밀린 리뷰가 없습니다.</p>
+        <p className="kicker">밀린 리뷰가 없습니다. 핸드 치면 여기로 옵니다.</p>
       </section>
     );
   }
   return (
     <section className="screen">
-      <div className="eyebrow">리뷰 큐 {i + 1}/{list.length}</div>
+      <div className="topbar"><button className="btn glass" onClick={() => go("analyze")}>분석</button><div className="eyebrow">리뷰 큐 {i + 1}/{list.length}</div><span /></div>
       <h1 style={{ margin: "8px 0" }}>{cur.headline}</h1>
       <p className="kicker">{cur.body}</p>
       <div className="card">
@@ -496,7 +501,7 @@ function Reviews({ profile, setProfile }: { profile: Profile; setProfile: (p: Pr
   );
 }
 
-function SettingsScreen({ profile, setProfile }: { profile: Profile; setProfile: (p: Profile) => void }) {
+function SettingsScreen({ profile, setProfile, go }: { profile: Profile; setProfile: (p: Profile) => void; go: (s: Screen) => void }) {
   const s = profile.settings;
   function patch(partial: Partial<Profile["settings"]>) {
     setProfile({ ...profile, settings: { ...s, ...partial } });

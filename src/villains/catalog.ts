@@ -592,7 +592,7 @@ export const PRESETS = [
     name: "입문",
     stars: 1,
     goal: "기본 착취 패턴",
-    villains: ["uncleho", "stationpark", "nitlee", "foldjeong", "weekend"],
+    villains: ["uncleho", "stationpark", "nitlee"],
   },
   {
     id: "regular",
