@@ -20,10 +20,10 @@ function playHand(ids: string[], button: number, seed: string, handNumber: numbe
     if (p.id !== "hero") runtimes[p.id] = createRuntime(p.id, p.seat);
   }
   let guard = 0;
-  while (state.street !== "complete" && state.toAct !== null && guard++ < 120) {
+  while (state.street !== "complete" && state.toAct !== null && guard++ < 90) {
     const actor = state.players[state.toAct];
     const rt = runtimes[actor.id] ?? createRuntime(actor.id, actor.seat);
-    const d = decideVillain(state, rt, 0.78);
+    const d = decideVillain(state, rt, 0.78, true);
     state = applyAction(state, d.type, d.raiseTo);
   }
   return state;

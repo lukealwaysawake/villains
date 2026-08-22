@@ -98,6 +98,7 @@ export function decideVillain(
   state: TableState,
   runtime: VillainRuntime,
   tellDifficulty = 0.78,
+  fast = false,
 ): PolicyDecision {
   const seat = state.toAct!;
   const player = state.players[seat];
@@ -212,7 +213,7 @@ export function decideVillain(
   }
 
   const read = readSpot(hole, state.board);
-  if (state.board.length >= 3) {
+  if (!fast && state.board.length >= 3) {
     const eq = equityVsRandom(hole, state.board, 24, `${state.seed}:${state.handNumber}:${def.id}`);
     read.strength = Math.min(0.995, read.strength * 0.55 + eq * 0.45);
   }
