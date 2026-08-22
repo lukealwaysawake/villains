@@ -78,6 +78,10 @@ export function positionsMap(button: number, seats = 6): Record<number, Position
   return map;
 }
 
+export function seatCount(state: { players: unknown[] }): number {
+  return state.players.length;
+}
+
 function nextSeat(from: number, seats = 6): number {
   return (from + 1) % seats;
 }
