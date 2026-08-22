@@ -1303,3 +1303,74 @@ input[type="range"] { width: 100%; accent-color: var(--gold); margin-top: 8px; }
 .revsheet .reco.tight b { font-size: 14px; display: block; margin-bottom: 4px; }
 .revsheet .reco.tight p { margin: 0; font-size: 12px; line-height: 1.4; color: var(--muted); }
 .revsheet .btn { min-height: 40px; font-size: 13px; }
+
+/* play ux pass */
+.seat.s1 { left: 3%; top: 52%; }
+.seat.s2 { left: 5%; top: 16%; }
+.seat.s4 { right: 5%; top: 16%; left: auto; }
+.seat.s5 { right: 3%; top: 52%; left: auto; }
+.hero-hole { position: relative; gap: 6px; }
+.hero-hole .pcard-3d.lg { width: 52px; height: 74px; }
+.hero-made {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: #1a140c;
+  background: var(--gold-2);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  font-weight: 700;
+}
+.seat.s0 .seat-card { background: rgba(10,12,16,0.9); border-color: rgba(240,212,138,0.28); }
+.pot {
+  background: rgba(0,0,0,0.42);
+  border: 1px solid rgba(240,212,138,0.22);
+  border-radius: 999px;
+  padding: 4px 12px 4px 8px;
+}
+.pot b { font-size: 15px; color: #f3e6c0; }
+.pot-lab { font-size: 8px; }
+.bubble {
+  top: -26px;
+  max-width: 130px;
+  z-index: 7;
+}
+.turn-cue {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: #d7d0c4;
+  background: rgba(0,0,0,0.42);
+  border-radius: 999px;
+  padding: 3px 10px;
+  z-index: 4;
+  pointer-events: none;
+}
+.tool-chip { font-size: 8px; padding: 1px 5px; }
+@media (max-width: 480px) {
+  .hero-hole .pcard-3d.lg { width: 46px; height: 66px; }
+  .seat.s1 { left: 2%; top: 50%; }
+  .seat.s5 { right: 2%; top: 50%; }
+}
+
+.waitbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 46px;
+  border-radius: 14px;
+  background: rgba(7,8,11,0.55);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+.waitbar .orbit { width: 14px; height: 14px; }
+.acts .btn { font-size: 13px; }

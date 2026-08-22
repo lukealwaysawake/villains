@@ -103,9 +103,6 @@ export function FeltTable({
             <b>{bb(pot)}</b>
           </div>
         </div>
-        {heroRead && table.street !== "complete" && !hero.folded && (
-          <div className="made-tag">{madeLabel(heroRead.made)}</div>
-        )}
         {table.street === "complete" && table.result && (
           <div className={`win-pill ${table.result.heroDelta >= 0 ? "win" : "lose"}`}>
             {table.result.heroDelta >= 0 ? "+" : "-"}{bb(Math.abs(table.result.heroDelta))}
@@ -134,9 +131,12 @@ export function FeltTable({
               <div className={`last-act ${act.type}`}>{describeAction(act)}</div>
             )}
             {p.id === "hero" && p.hole && (
-              <div className="hole">
+              <div className="hole hero-hole">
                 <PlayingCard key={`${table.handNumber}-a`} card={p.hole[0]} large delay={40} />
                 <PlayingCard key={`${table.handNumber}-b`} card={p.hole[1]} large delay={120} />
+                {heroRead && !p.folded && table.street !== "complete" && (
+                  <span className="hero-made">{madeLabel(heroRead.made)}</span>
+                )}
               </div>
             )}
             {p.id !== "hero" && (
@@ -166,8 +166,9 @@ export function FeltTable({
               <div className="st">{bb(p.stack)}</div>
               {showHud && def && (
                 <div className="tool-chips">
-                  <span className="tool-chip">V {def.baseStats.vpip}</span>
-                  <span className="tool-chip">P {def.baseStats.pfr}</span>
+                  <span className="tool-chip">VPIP {def.baseStats.vpip}</span>
+                  <span className="tool-chip">PFR {def.baseStats.pfr}</span>
+                  {full && <span className="tool-chip">AF {def.baseStats.aggressionFactor}</span>}
                   {full && <span className="tool-chip">{pos} {def.positionalStats?.[pos]?.vpip ?? def.baseStats.vpip}</span>}
                 </div>
               )}
@@ -183,6 +184,10 @@ export function FeltTable({
           </div>
         );
       })}
+
+      {table.toAct !== null && table.toAct !== 0 && table.street !== "complete" && (
+        <div className="turn-cue">{actorName(table.players[table.toAct].id)} 차례</div>
+      )}
 
       <div className="ticker">
         {table.actionLog.slice(-4).map((a, i) => (

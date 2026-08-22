@@ -302,7 +302,7 @@ export function TableScreen({
                 setRaiseTo(legal.minBet);
               }}
             >
-              {legal.callAmount > 0 ? "레이즈" : "벳"}
+              {legal.callAmount > 0 ? "레이즈" : "벳"} {bb(legal.minBet)}+
             </button>
           </div>
           {legal.canCall && legal.callAmount > 0 && (
@@ -324,6 +324,13 @@ export function TableScreen({
               </button>
             </>
           )}
+        </div>
+      )}
+
+      {!heroTurn && table.street !== "complete" && (
+        <div className="waitbar">
+          <i className="orbit" />
+          <span>{thinking ? "생각 중" : "진행 중"}</span>
         </div>
       )}
 
