@@ -42,7 +42,9 @@ export function FeltTable({
   const last = table.actionLog[table.actionLog.length - 1];
   const [splash, setSplash] = useState<{ key: number; text: string; kind: string } | null>(null);
   const [collect, setCollect] = useState(false);
+  const [award, setAward] = useState(false);
   const streetRef = useRef(table.street);
+  const awardRef = useRef(0);
 
   useEffect(() => {
     if (!last) return;
@@ -62,6 +64,15 @@ export function FeltTable({
     streetRef.current = table.street;
   }, [table.street]);
 
+  useEffect(() => {
+    if (table.street !== "complete" || !table.result) return;
+    if (awardRef.current === table.handNumber) return;
+    awardRef.current = table.handNumber;
+    setAward(true);
+    const t = setTimeout(() => setAward(false), 1100);
+    return () => clearTimeout(t);
+  }, [table.street, table.handNumber, table.result]);
+
   const streetKo =
     table.street === "preflop" ? "프리플랍" :
     table.street === "flop" ? "플랍" :
@@ -71,6 +82,11 @@ export function FeltTable({
   const hero = table.players[0];
   const heroRead = hero.hole && table.board.length >= 3 ? readSpot(hero.hole, table.board) : null;
   const winners = new Set((table.result?.winnersByPot ?? []).flatMap((w) => w.seats));
+  const wonBySeat: Record<number, number> = {};
+  for (const w of table.result?.winnersByPot ?? []) {
+    const share = w.amount / Math.max(1, w.seats.length);
+    for (const s of w.seats) wonBySeat[s] = (wonBySeat[s] ?? 0) + share;
+  }
 
   return (
     <div className={`table live street-${table.street} ${collect ? "collecting" : ""}`}>
@@ -96,7 +112,7 @@ export function FeltTable({
             return <PlayingCard key={`${table.handNumber}-${i}-${c.rank}-${c.suit}`} card={c} delay={delay} />;
           })}
         </div>
-        <div className={`pot ${collect ? "suck" : ""}`} key={`${table.handNumber}-${table.street}-${pot}`}>
+        <div className={`pot ${collect ? "suck" : ""} ${award ? "away" : ""}`} key={`${table.handNumber}-${table.street}-${pot}`}>
           <ChipStack n={Math.min(5, Math.max(1, Math.round(pot / 200)))} />
           <div>
             <div className="pot-lab">POT</div>
@@ -160,10 +176,18 @@ export function FeltTable({
               <Avatar id={p.id} />
               {table.toAct === p.seat && <i className="timer" />}
               {won && <i className="win-burst" />}
+              {won && award && (
+                <div className="award" key={`aw-${table.handNumber}`}>
+                  <ChipStack n={5} />
+                </div>
+              )}
+              {award && wonBySeat[p.seat] > 0 && (
+                <div className="award-amt" key={`amt-${table.handNumber}`}>+{bb(wonBySeat[p.seat])}</div>
+              )}
             </div>
             <div className="seat-card">
               <div className="nm">{p.id === "hero" ? "나" : def?.name} · {pos}</div>
-              <div className="st">{bb(p.stack)}</div>
+              <div className={`st ${award && won ? "pop" : ""}`}>{bb(p.stack)}</div>
               {showHud && def && (
                 <div className="tool-chips">
                   <span className="tool-chip">VPIP {def.baseStats.vpip}</span>
