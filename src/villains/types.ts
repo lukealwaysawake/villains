@@ -104,6 +104,7 @@ export interface VillainRuntime {
   dialogueCooldowns: Record<string, number>;
   sessionSpeechCount: number;
   lastLine: string | null;
+  lastTrigger: string | null;
   overbetBluffBoostUntil: number;
   cbetBoost: number;
   fourBetBoost: number;
@@ -136,7 +137,5 @@ export function createRuntime(villainId: string, seat: number): VillainRuntime {
     overbetBluffBoostUntil: 0,
     cbetBoost: 0,
     fourBetBoost: 0,
-  };
-}
   };
 }
