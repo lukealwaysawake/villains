@@ -162,7 +162,7 @@ export function decideVillain(
   const act = (type: ActionType, raiseTo = 0): PolicyDecision => ({ type, raiseTo, delayMs, mixKey });
 
   if (street === "preflop") {
-    const openThresh = stats.pfr * POS_OPEN_MULT[pos] * (0.7 + 0.3 * stats.positionAwareness);
+    const openThresh = stats.pfr * POS_OPEN_MULT[pos] * POS_NORM * (0.88 + 0.12 * stats.positionAwareness) * 1.55;
     const vpipThresh = stats.vpip * (0.75 + 0.35 * (1.15 - stats.positionAwareness * 0.15));
     if (toCall === 0 || (toCall <= BB && raises === 0 && player.contributedStreet >= BB)) {
       if (pfPct <= openThresh && legal.canBet) {
@@ -242,6 +242,9 @@ export function decideVillain(
       }
       return act("call");
     }
+    if (legal.canBet && stats.aggressionFactor >= 2.4 && read.strength >= 0.5 && rng.chance(Math.min(0.6, stats.aggressionFactor / 7))) {
+      return act("raise", sizingTo(state, seat, profileFrac(stats.betSizingProfile), kimOver));
+    }
     if (read.strength >= calldown) return act("call");
     if (read.strength + 0.03 >= odds && !nit) return act("call");
     if (tourneyCommit && (read.made === "toppair" || read.made === "overpair") && legal.canBet && toCall >= player.stack * 0.35) {
@@ -259,7 +262,8 @@ export function decideVillain(
   const wasAggressor = state.actionLog.some((a) => a.actorId === def.id && (a.type === "bet" || a.type === "raise") && (street === "flop" ? a.street === "preflop" : true));
   const shouldCbet = wasAggressor || street === "flop";
   let wantBet = false;
-  if (monster || value) wantBet = rng.chance(Math.min(0.96, betF + 0.15));
+  const aggBoost = Math.min(0.3, Math.max(0, (stats.aggressionFactor - 2) * 0.12));
+  if (monster || value) wantBet = rng.chance(Math.min(0.97, betF + 0.15 + aggBoost));
   else if (draw && street !== "river") wantBet = rng.chance(betF * 0.55);
   else if (air && street === "river") {
     let bluff = stats.riverBluffFreq / 100;
