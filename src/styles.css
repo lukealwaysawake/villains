@@ -15,6 +15,24 @@
   --safe-top: env(safe-area-inset-top);
   --safe-bot: env(safe-area-inset-bottom);
   --ease: cubic-bezier(0.22, 0.9, 0.24, 1);
+
+  /* spacing: 4px base grid */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+
+  /* radius */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-full: 999px;
+
+  /* touch targets: WCAG AAA 44, Material 48 */
+  --tap: 44px;
+  --tap-lg: 52px;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -1501,3 +1519,90 @@ input[type="range"] { width: 100%; accent-color: var(--gold); margin-top: 8px; }
 .rc-ava { display: flex; gap: 6px; margin-top: 8px; }
 .rc-ava .avatar { width: 30px; height: 30px; font-size: 12px; }
 .resume-card .btn { min-height: 44px; font-size: 13px; }
+
+/* design system */
+
+/* Every control clears the 44px minimum. */
+.btn,
+.sel,
+.seg button,
+.sizes button,
+.end-rev,
+.vcell,
+.nav button,
+.probe-row button {
+  min-height: var(--tap);
+}
+.acts .btn { min-height: var(--tap-lg); }
+
+/* Small chips keep their look but extend the tap area. */
+.hud-exit,
+.chip {
+  position: relative;
+}
+.hud-exit::after,
+.chip::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: var(--tap);
+  transform: translateY(-50%);
+}
+
+/* Consistent radii */
+.btn { border-radius: var(--r-md); }
+.card, .insight { border-radius: var(--r-lg); }
+.sel, .seg, .street-row, .probe-row { border-radius: var(--r-sm); }
+.chip, .hud-exit, .sizes button, .tool-chip { border-radius: var(--r-full); }
+
+/* Button hierarchy: one filled action per group. */
+.btn.primary,
+.btn.launch {
+  background: linear-gradient(180deg, #f0d48a, var(--gold));
+  color: #2a1d08;
+  font-weight: 700;
+  border: 0;
+}
+.btn.glass {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-weight: 600;
+}
+.btn.ghost {
+  background: transparent;
+  border: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+.btn:disabled { opacity: 0.35; }
+
+/* Stacked actions sit on the 8px grid. */
+.btn.wide + .btn.wide { margin-top: var(--s2); }
+.grid2 { gap: var(--s2); }
+.grid3 { gap: var(--s2); }
+.card + .card { margin-top: var(--s2); }
+.screen > .btn.wide:first-of-type { margin-top: var(--s2); }
+
+/* Segmented control */
+.seg { padding: var(--s1); gap: var(--s1); }
+.seg button { border-radius: var(--r-sm); }
+
+/* Bet sizing chips read as one row of equal targets. */
+.sizes { gap: var(--s2); padding-bottom: var(--s1); }
+.sizes button { padding: 0 var(--s3); }
+
+/* Villain grid cells are real buttons. */
+.vcell { padding: var(--s2) var(--s1); border-radius: var(--r-md); }
+
+/* Focus ring for keyboard and switch control. */
+.btn:focus-visible,
+.sel:focus-visible,
+.seg button:focus-visible,
+.nav button:focus-visible,
+.vcell:focus-visible {
+  outline: 2px solid var(--gold-2);
+  outline-offset: 2px;
+}
