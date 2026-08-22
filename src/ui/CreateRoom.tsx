@@ -17,6 +17,25 @@ const LIMITS = [
   { n: 0, label: "무제한" },
 ];
 
+function moneyField(value: number, onChange: (n: number) => void, label: string) {
+  return (
+    <label className="cash-field">
+      <span>{label}</span>
+      <span className="cash-in">
+        $
+        <input
+          type="number"
+          inputMode="decimal"
+          min={0.01}
+          step={0.5}
+          value={Number.isFinite(value) ? value : 0}
+          onChange={(e) => onChange(Math.max(0, Number(e.target.value)))}
+        />
+      </span>
+    </label>
+  );
+}
+
 export function CreateRoom({
   initial,
   onBack,
@@ -38,7 +57,13 @@ export function CreateRoom({
   const [speed, setSpeed] = useState(base.speed);
   const [picks, setPicks] = useState<string[]>(base.villainIds ?? ["uncleho", "nitlee", "stationpark"].slice(0, (base.seats || 4) - 1));
   const need = seats - 1;
-  const buyInBb = Math.max(20, Math.round(startStack / bb)) as 50 | 100 | 200;
+  const buyInBb = Math.max(20, Math.round((startStack || 1) / Math.max(bb, 0.01)));
+  const ready = picks.length === need && sb > 0 && bb >= sb && startStack >= bb;
+
+  function setSmall(n: number) {
+    setSb(n);
+    if (bb === sb * 2 || bb < n) setBb(Math.round(n * 2 * 100) / 100);
+  }
 
   function toggle(id: string) {
     if (picks.includes(id)) setPicks(picks.filter((x) => x !== id));
@@ -67,20 +92,11 @@ export function CreateRoom({
     <section className="screen">
       <div className="topbar">
         <button className="btn glass" onClick={onBack}>뒤로</button>
-        <div className="eyebrow">방 만들기</div>
+        <div className="eyebrow">테이블 세팅</div>
         <span />
       </div>
       <div className="card">
-        <div className="row"><span className="idx">01</span><b>방 이름</b></div>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="캐시 테이블"
-          style={{ width: "100%", marginTop: 8, background: "#12141a", border: "1px solid #333", color: "inherit", padding: 10, borderRadius: 10 }}
-        />
-      </div>
-      <div className="card">
-        <div className="row"><span className="idx">02</span><b>인원</b></div>
+        <div className="row"><span className="idx">01</span><b>인원</b></div>
         <div className="grid3" style={{ marginTop: 8 }}>
           {([2, 4, 6] as const).map((n) => (
             <button key={n} className={`sel ${seats === n ? "on" : ""}`} onClick={() => { setSeats(n); setPicks((cur) => cur.slice(0, n - 1)); }}>
@@ -90,8 +106,12 @@ export function CreateRoom({
         </div>
       </div>
       <div className="card">
-        <div className="row"><span className="idx">03</span><b>스몰 / 빅</b></div>
-        <p className="kicker">연습 칩입니다. 현금이 오가지 않습니다. 표시만 $입니다.</p>
+        <div className="row"><span className="idx">02</span><b>스몰 / 빅</b></div>
+        <p className="kicker">연습 칩입니다. 숫자로 직접 넣어도 됩니다.</p>
+        <div className="grid2" style={{ marginTop: 8 }}>
+          {moneyField(sb, setSmall, "스몰")}
+          {moneyField(bb, setBb, "빅")}
+        </div>
         <div className="grid2" style={{ marginTop: 8 }}>
           {STAKES.map((s) => (
             <button key={s.label} className={`sel ${sb === s.sb && bb === s.bb ? "on" : ""}`} onClick={() => { setSb(s.sb); setBb(s.bb); }}>
@@ -101,33 +121,29 @@ export function CreateRoom({
         </div>
       </div>
       <div className="card">
-        <div className="row"><span className="idx">04</span><b>시작 스택</b></div>
+        <div className="row"><span className="idx">03</span><b>바이인</b></div>
+        <p className="kicker">시작 스택입니다. 지금은 {Math.round(startStack / Math.max(bb, 0.01))}bb.</p>
+        {moneyField(startStack, setStartStack, "바이인")}
         <div className="grid2" style={{ marginTop: 8 }}>
           {STARTS.map((n) => (
             <button key={n} className={`sel ${startStack === n ? "on" : ""}`} onClick={() => setStartStack(n)}>
-              ${n} · {Math.round(n / bb)}bb
+              ${n}
             </button>
           ))}
         </div>
       </div>
       <div className="card">
-        <div className="row"><span className="idx">05</span><b>바이인 횟수</b></div>
+        <div className="row"><span className="idx">04</span><b>바이인 횟수</b></div>
         <div className="grid2" style={{ marginTop: 8 }}>
           {LIMITS.map((x) => (
-            <button key={x.label} className={`sel ${buyInLimit === x.n ? "on" : ""}`} onClick={() => { setBuyInLimit(x.n); if (x.n === 1) setAutoRebuy(false); else setAutoRebuy(true); }}>
+            <button key={x.label} className={`sel ${buyInLimit === x.n ? "on" : ""}`} onClick={() => { setBuyInLimit(x.n); setAutoRebuy(x.n !== 1); }}>
               {x.label}
             </button>
           ))}
         </div>
-        <p className="kicker">{buyInLimit === 1 ? "한 번 사서 끝나면 세션 종료." : buyInLimit === 0 ? "스택이 블라인드 아래로 떨어지면 다시 삽니다." : `처음 포함 ${buyInLimit}번까지 살 수 있습니다.`}</p>
       </div>
       <div className="card">
-        <div className="row"><span className="idx">06</span><b>속도</b></div>
-        <input type="range" min={0.7} max={2} step={0.1} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} />
-      </div>
-      <div className="card">
-        <div className="row"><span className="idx">07</span><b>상대 {picks.length}/{need}</b></div>
-        <p className="kicker">프리셋으로 채우거나 직접 고르세요.</p>
+        <div className="row"><span className="idx">05</span><b>상대 {picks.length}/{need}</b></div>
         <div className="grid2" style={{ marginTop: 8 }}>
           {PRESETS.map((p) => (
             <button key={p.id} className="sel" onClick={() => fillPreset([...p.villains])}>{p.name}</button>
@@ -145,12 +161,18 @@ export function CreateRoom({
           })}
         </div>
       </div>
-      <button
-        className="btn launch wide"
-        disabled={picks.length !== need}
-        onClick={() => onCreate(room, picks)}
-      >
-        ${sb}/{bb} · 시작 ${startStack} · {seats}인 열기
+      <div className="card">
+        <div className="row"><span className="idx">06</span><b>방 이름 · 속도</b></div>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="캐시 테이블"
+          style={{ width: "100%", marginTop: 8, background: "#12141a", border: "1px solid #333", color: "inherit", padding: 10, borderRadius: 10 }}
+        />
+        <input type="range" min={0.7} max={2} step={0.1} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} />
+      </div>
+      <button className="btn launch wide" disabled={!ready} onClick={() => onCreate(room, picks)}>
+        ${sb}/{bb} · 바이인 ${startStack} · {seats}인
       </button>
     </section>
   );
