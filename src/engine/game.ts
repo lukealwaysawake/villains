@@ -484,12 +484,3 @@ export function describeAction(action: Action): string {
       return `올인 ${bb(action.amount)}`;
   }
 }
-aise":
-      return `레이즈 ${bb(action.amount)}`;
-    case "allin":
-      return `올인 ${bb(action.amount)}`;
-  }
-}
- ${bb(action.amount)}`;
-  }
-}
