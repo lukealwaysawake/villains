@@ -47,15 +47,7 @@ export function PlayingCard({
             <>
               <b className="idx tl">{RANK_GLYPH[card.rank]}<em>{SUIT_GLYPH[card.suit]}</em></b>
               <b className="idx br">{RANK_GLYPH[card.rank]}<em>{SUIT_GLYPH[card.suit]}</em></b>
-              {large && !court ? (
-                <div className="pips">
-                  {pips.map(([x, y], i) => (
-                    <span key={i} style={{ left: `${x}%`, top: `${y}%` }}>{SUIT_GLYPH[card.suit]}</span>
-                  ))}
-                </div>
-              ) : (
-                <div className="court">{RANK_GLYPH[card.rank]}</div>
-              )}
+              <div className="court">{RANK_GLYPH[card.rank]}</div>
             </>
           )}
         </div>
