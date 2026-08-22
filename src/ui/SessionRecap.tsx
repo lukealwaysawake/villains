@@ -21,10 +21,11 @@ export function SessionRecap({
   const misses = reviews.filter((r) => r.severity !== "green");
   const patterns = sessionPatterns(session);
   const kibos = (profile.handLog ?? []).filter((h) => h.sessionId === session.id);
+  const showExtraKibos = kibos.length > 0 && kibos.length !== reviews.length;
 
   return (
     <section className="screen recap">
-      <div className="eyebrow">전체 복기</div>
+      <div className="eyebrow">SESSION RECAP</div>
       <h1 className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</h1>
       <p className="kicker">
         {session.handsPlayed}핸드 · {session.room ? `$${session.room.sb}/${session.room.bb}` : "캐시"} · {session.villainIds.map((id) => VILLAIN_BY_ID[id]?.name).join(" · ")}
@@ -61,7 +62,7 @@ export function SessionRecap({
             <summary>
               <i className={`dot ${r.severity}`} />
               <span className="hb-title">#{r.handNumber} {r.headline}</span>
-              <span className={r.totalLossBb > 0 ? "bad" : "muted"}>{r.totalLossBb > 0 ? `-${r.totalLossBb}` : "OK"}</span>
+              <span className={r.totalLossBb > 0 ? "bad" : "muted"}>{r.totalLossBb > 0 ? `-${r.totalLossBb}bb` : "OK"}</span>
             </summary>
             <p className="kicker">{r.body}</p>
             {r.streets && r.streets.length > 0 && (
@@ -81,7 +82,7 @@ export function SessionRecap({
         ))}
       </div>
 
-      {kibos.length > 0 && kibos.length !== reviews.length && (
+      {showExtraKibos && (
         <div className="card">
           <div className="row"><span className="idx">03</span><b>기보</b></div>
           {kibos.map((h) => (
@@ -94,7 +95,7 @@ export function SessionRecap({
       )}
 
       <div className="card">
-        <div className="row"><span className="idx">04</span><b>상대</b></div>
+        <div className="row"><span className="idx">{showExtraKibos ? "04" : "03"}</span><b>상대</b></div>
         {session.villainIds.map((id) => (
           <div key={id} className="list-item">
             <Avatar id={id} />

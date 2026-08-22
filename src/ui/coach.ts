@@ -9,7 +9,7 @@ export function coachLine(state: TableState): string | null {
   const park = state.players.find((p) => p.id === "stationpark" && !p.folded);
 
   if (state.street === "preflop" && uncle) {
-    const limp = state.actionLog.some((a) => a.actorId === "uncleho" && a.type === "call" && a.toCall <= 100);
+    const limp = state.actionLog.some((a) => a.actorId === "uncleho" && a.type === "call" && a.toCall <= state.bb);
     if (limp && legal.canBet) return "삼촌이 림프했습니다. 이런 상대는 아이솔레이션 레이즈로 압박하세요.";
   }
   if (state.street === "preflop" && nit) {
@@ -23,7 +23,7 @@ export function coachLine(state: TableState): string | null {
     return "박사장 리버 벳은 밸류로 보세요. 세컨페어 이상이면 콜이 기본입니다.";
   }
   const pos = positionFor(state.button, 0, state.players.length);
-  if (pos === "BTN" && state.street === "preflop" && legal.canBet && legal.callAmount <= 100) {
+  if (pos === "BTN" && state.street === "preflop" && legal.canBet && legal.callAmount <= state.bb) {
     return "버튼입니다. 타이트한 상대의 블라인드는 훔치는 연습 구간입니다.";
   }
   return null;

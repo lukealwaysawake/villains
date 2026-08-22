@@ -1,6 +1,6 @@
 import { applyAction, legalActions, type TableState } from "../engine/game";
 import { readSpot } from "../engine/handRank";
-import { BB, chipsToBb, type ActionType, type Street } from "../engine/types";
+import { chipsToBb, type ActionType, type Street } from "../engine/types";
 import { decideVillain } from "../villains/policy";
 import { createRuntime, type VillainRuntime } from "../villains/types";
 
@@ -66,7 +66,7 @@ export function evForAction(
     const done = finish(branched, runtimes, tell);
     sum += done.result?.heroDelta ?? 0;
   }
-  return chipsToBb(sum / Math.max(1, samples));
+  return chipsToBb(sum / Math.max(1, samples), state.bb);
 }
 
 export function candidateList(state: TableState): { type: ActionType; raiseTo: number; label: string }[] {
@@ -75,9 +75,9 @@ export function candidateList(state: TableState): { type: ActionType; raiseTo: n
   const out: { type: ActionType; raiseTo: number; label: string }[] = [];
   if (legal.canFold) out.push({ type: "fold", raiseTo: 0, label: "폴드" });
   if (legal.canCheck) out.push({ type: "check", raiseTo: 0, label: "체크" });
-  if (legal.canCall) out.push({ type: "call", raiseTo: 0, label: `콜 ${Math.round((legal.callAmount / BB) * 10) / 10}bb` });
+  if (legal.canCall) out.push({ type: "call", raiseTo: 0, label: `콜 ${Math.round((legal.callAmount / state.bb) * 10) / 10}bb` });
   if (legal.canBet) {
-    const pot = Math.max(legal.pot, BB);
+    const pot = Math.max(legal.pot, state.bb);
     const sizes = [
       { label: "33%", to: Math.min(legal.maxRaiseTo, Math.max(legal.minBet, Math.round(pot * 0.33))) },
       { label: "팟", to: Math.min(legal.maxRaiseTo, Math.max(legal.minBet, pot)) },
@@ -87,7 +87,7 @@ export function candidateList(state: TableState): { type: ActionType; raiseTo: n
     for (const s of sizes) {
       if (seen.has(s.to)) continue;
       seen.add(s.to);
-      out.push({ type: legal.callAmount > 0 ? "raise" : "bet", raiseTo: s.to, label: `${s.label} ${Math.round((s.to / BB) * 10) / 10}bb` });
+      out.push({ type: legal.callAmount > 0 ? "raise" : "bet", raiseTo: s.to, label: `${s.label} ${Math.round((s.to / state.bb) * 10) / 10}bb` });
     }
   }
   return out;
@@ -99,7 +99,7 @@ export function replayToHeroIndex(state: TableState, actionIndex: number): Table
     street: "preflop",
     board: [],
     currentBet: 0,
-    lastRaiseSize: BB,
+    lastRaiseSize: state.bb,
     lastFullRaiser: null,
     toAct: null,
     playersToAct: 0,

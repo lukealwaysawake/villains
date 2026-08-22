@@ -24,10 +24,10 @@ export function Analyze({
 
   return (
     <section className="screen">
-      <div className="topbar">
-        <div className="eyebrow">분석</div>
-        <span />
-        <button className="btn glass" onClick={() => go("reviews")}>리뷰 {profile.reviewQueue.length}</button>
+      <div className="page-title records-title">
+        <div className="row"><span className="eyebrow">RECORDS</span><button className="btn glass compact" onClick={() => go("reviews")}>리뷰 {profile.reviewQueue.length}</button></div>
+        <h1>플레이 기록</h1>
+        <p>반복되는 결정 패턴과 세션 결과를 한곳에서 확인하세요.</p>
       </div>
       <div className="grid3">
         <div className="card"><div className="muted">핸드</div><b>{profile.lifetimeHands}</b></div>

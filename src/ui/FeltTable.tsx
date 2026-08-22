@@ -20,6 +20,11 @@ function actorName(id: string): string {
   return id === "hero" ? "나" : VILLAIN_BY_ID[id]?.name ?? id;
 }
 
+function emotionLabel(emotion: string): string {
+  const labels: Record<string, string> = { TILT: "흔들림", SCARED: "위축", CONFIDENT: "자신감", STEAMING: "과열" };
+  return labels[emotion] ?? "";
+}
+
 export function FeltTable({
   table,
   session,
@@ -62,12 +67,6 @@ export function FeltTable({
     streetRef.current = table.street;
   }, [table.street]);
 
-  const streetKo =
-    table.street === "preflop" ? "프리플랍" :
-    table.street === "flop" ? "플랍" :
-    table.street === "turn" ? "턴" :
-    table.street === "river" ? "리버" : "쇼다운";
-
   const hero = table.players[0];
   const heroRead = hero.hole && table.board.length >= 3 ? readSpot(hero.hole, table.board) : null;
   const winners = new Set((table.result?.winnersByPot ?? []).flatMap((w) => w.seats));
@@ -83,10 +82,6 @@ export function FeltTable({
       <div className="felt-wood" />
       <div className="felt-ring" />
       <div className="felt-well" />
-      {table.street !== "preflop" && table.street !== "complete" && (
-        <div className="street-flash" key={`${table.handNumber}-${table.street}`}>{streetKo}</div>
-      )}
-
       {splash && (
         <div className={`splash ${splash.kind}`} key={splash.key}>
           {splash.kind === "allin" ? "ALL IN" : splash.text}
@@ -125,13 +120,21 @@ export function FeltTable({
         const act = lastFor(table, p.id);
         const shown = table.result?.shown[p.seat];
         const won = winners.has(p.seat);
+        const seatName = p.id === "hero" ? "나" : def?.name ?? p.id;
+        const seatLabel = `${seatName}, ${pos}, 스택 ${bb(p.stack)}${act ? `, 최근 ${describeAction(act)}` : ""}`;
+        const toggleHud = () => p.id !== "hero" && setHudSeat(hudSeat === p.seat ? null : p.seat);
         return (
           <div
             key={p.id}
             className={`seat ${visualClass(p.seat, n)} ${table.toAct === p.seat ? "turn" : ""} ${p.folded ? "fold" : ""} ${p.allIn ? "allin" : ""} ${won ? "winner" : ""}`}
-            onClick={() => p.id !== "hero" && setHudSeat(hudSeat === p.seat ? null : p.seat)}
+            role={p.id !== "hero" ? "button" : undefined}
+            tabIndex={p.id !== "hero" ? 0 : undefined}
+            aria-label={seatLabel}
+            aria-pressed={p.id !== "hero" ? hudSeat === p.seat : undefined}
+            onClick={toggleHud}
+            onKeyDown={(event) => { if (p.id !== "hero" && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); toggleHud(); } }}
           >
-            {speech?.villainId === p.id && <div className="bubble">{speech.line}</div>}
+            {speech?.villainId === p.id && <div className="bubble" aria-live="polite">{speech.line}</div>}
             {p.seat === table.button && <div className="dealer">D</div>}
             {act && table.street !== "complete" && (
               <div className={`last-act ${act.type}`}>{describeAction(act)}</div>
@@ -186,7 +189,7 @@ export function FeltTable({
                   {full && <span className="tool-chip">{pos} {def.positionalStats?.[pos]?.vpip ?? def.baseStats.vpip}</span>}
                 </div>
               )}
-              {rt && rt.emotion !== "NORMAL" && <div className="emo">{rt.emotion}</div>}
+              {rt && rt.emotion !== "NORMAL" && <div className="emo">{emotionLabel(rt.emotion)}</div>}
               {thinking === p.id && <div className="orbit" aria-label="생각 중" />}
             </div>
             {p.contributedStreet > 0 && (
@@ -200,10 +203,10 @@ export function FeltTable({
       })}
 
       {table.toAct !== null && table.toAct !== 0 && table.street !== "complete" && (
-        <div className="turn-cue">{actorName(table.players[table.toAct].id)} 차례</div>
+        <div className="turn-cue" role="status" aria-live="polite">{actorName(table.players[table.toAct].id)} 차례</div>
       )}
 
-      <div className="ticker">
+      <div className="ticker" aria-hidden="true">
         {table.actionLog.slice(-4).map((a, i) => (
           <span key={`${a.actorId}-${a.street}-${i}`}>{actorName(a.actorId)} {describeAction(a)}</span>
         ))}

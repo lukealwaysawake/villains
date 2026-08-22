@@ -1,7 +1,7 @@
 import { madeLabel, readSpot } from "../engine/handRank";
 import { RANK_GLYPH, SUIT_GLYPH } from "../engine/cards";
 import { describeAction, type TableState } from "../engine/game";
-import { BB, chipsToBb, type ReviewSeverity, type Street } from "../engine/types";
+import { chipsToBb, type ReviewSeverity, type Street } from "../engine/types";
 import { VILLAIN_BY_ID } from "../villains/catalog";
 
 export interface StreetReview {
@@ -29,6 +29,9 @@ export interface ReviewCard {
   villainId?: string;
   viewed: boolean;
   streets?: StreetReview[];
+  gtoLine?: string;
+  exploitLine?: string;
+  candidates?: { label: string; ev: number }[];
 }
 
 function worstVillain(state: TableState): string | undefined {
@@ -49,7 +52,7 @@ export function analyzeHand(state: TableState): ReviewCard {
     ? [...state.actionLog].reverse().find((a) => a.actorId !== "hero" && a.street === last.street)?.actorId ?? worstVillain(state)
     : worstVillain(state);
   const opp = oppId ? VILLAIN_BY_ID[oppId] : undefined;
-  const resultBb = chipsToBb(state.result?.heroDelta ?? 0);
+  const resultBb = chipsToBb(state.result?.heroDelta ?? 0, state.bb);
   let loss = 0;
   let headline = "무난한 핸드";
   let body = "큰 실수는 안 보였습니다.";
@@ -59,14 +62,13 @@ export function analyzeHand(state: TableState): ReviewCard {
   let leak: string | undefined;
 
   const riverBet = acts.find((a) => a.street === "river" && (a.type === "bet" || a.type === "raise"));
-  const riverFold = acts.find((a) => a.street === "river" && a.type === "fold");
   const preRaise = acts.filter((a) => a.street === "preflop" && (a.type === "raise" || a.type === "allin"));
   const heroHole = hero.hole;
 
   if (opp && riverBet) {
     const foldRiver = opp.baseStats.foldToCbetRiver;
     if (opp.id === "stationpark" || foldRiver <= 18) {
-      loss = Math.max(2.4, chipsToBb(riverBet.amount) * (1 - foldRiver / 100));
+      loss = Math.max(2.4, chipsToBb(riverBet.amount, state.bb) * (1 - foldRiver / 100));
       headline = `${opp.name}에게 리버 블러프`;
       body = `${opp.name}의 fold to river bet은 ${opp.id === "stationpark" ? 12 : foldRiver}%입니다. 이 상대에게 블러프는 성립하지 않습니다. 체크가 정답입니다.`;
       alt = "밸류만 크게 베팅하세요.";
@@ -95,8 +97,8 @@ export function analyzeHand(state: TableState): ReviewCard {
     leak = "RANGE";
   }
 
-  if (opp?.id === "uncleho" && street === "preflop" && last?.type === "call" && last.toCall <= BB) {
-    const limped = state.actionLog.some((a) => a.actorId === "uncleho" && a.type === "call" && a.street === "preflop" && a.toCall <= BB);
+  if (opp?.id === "uncleho" && street === "preflop" && last?.type === "call" && last.toCall <= state.bb) {
+    const limped = state.actionLog.some((a) => a.actorId === "uncleho" && a.type === "call" && a.street === "preflop" && a.toCall <= state.bb);
     if (limped) {
       loss = Math.max(loss, 2.1);
       headline = "삼촌 림프를 그냥 콜";
@@ -127,7 +129,7 @@ export function analyzeHand(state: TableState): ReviewCard {
     leak = "POSITIONAL";
   }
 
-  if (opp?.id === "weekend" && last?.type === "check" && street === "turn" && last.potBefore >= 40 * BB) {
+  if (opp?.id === "weekend" && last?.type === "check" && street === "turn" && last.potBefore >= 40 * state.bb) {
     loss = Math.max(loss, 3.5);
     headline = "큰 팟에서 주말전사를 놓침";
     body = "팟이 60bb를 넘으면 주말전사의 폴드 빈도가 급등합니다. 사이징을 키우세요.";
@@ -251,7 +253,7 @@ export function analyzeStreets(state: TableState): StreetReview[] {
     if (mine.length === 0) continue;
     const shownBoard = state.board.slice(0, BOARD_COUNT[street]);
     const read = shownBoard.length >= 3 ? readSpot(hero.hole, shownBoard) : null;
-    const potBb = chipsToBb(mine[0].potBefore);
+    const potBb = chipsToBb(mine[0].potBefore, state.bb);
     const faced = acts.filter((x) => x.actorId !== "hero" && (x.type === "bet" || x.type === "raise" || x.type === "allin"));
     const aggro = mine.some((x) => x.type === "bet" || x.type === "raise" || x.type === "allin");
     const folded = mine.some((x) => x.type === "fold");

@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { applyAction, createFreshPlayers, legalActions, sizingPresets, startHand, type TableState } from "../engine/game";
-import { BB } from "../engine/types";
 import { analyzeHand, type ReviewCard } from "../review/analyze";
 import { scoreDecisionAsync } from "../review/evClient";
-import { commitHand, persistLive, remainingDailyHands, type Profile, type Session } from "../state/store";
+import { commitHand, persistLive, type Profile, type Session } from "../state/store";
 import { decideVillain, delayFor } from "../villains/policy";
 import { maybeSpeak, onHandEnd, sessionStartLines, updateHeroRead, type SpeechEvent } from "../villains/runtime";
+import { VILLAIN_BY_ID } from "../villains/catalog";
 import { FeltTable } from "./FeltTable";
 import { bb, signedBb } from "./bits";
 import { coachLine } from "./coach";
@@ -72,6 +72,7 @@ export function TableScreen({
   const [deep, setDeep] = useState(false);
   const [raiseOn, setRaiseOn] = useState(false);
   const [raiseTo, setRaiseTo] = useState(0);
+  const [exitOpen, setExitOpen] = useState(false);
   const [hudSeat, setHudSeat] = useState<number | null>(null);
   const [blocked, setBlocked] = useState<string | null>(null);
   const committed = useRef(0);
@@ -81,10 +82,6 @@ export function TableScreen({
   useEffect(() => {
     if (boot.current) return;
     boot.current = true;
-    if (remainingDailyHands(profileRef.current) <= 0) {
-      setBlocked("오늘 무료 300핸드를 다 썼습니다. 설정에서 Pro를 켜면 무제한입니다.");
-      return;
-    }
     const next = structuredClone(sessionRef.current);
     if (next.liveTable) {
       setSession(next);
@@ -178,12 +175,16 @@ export function TableScreen({
         setBadge((cur) => {
           if (!cur || cur.handNumber !== review.handNumber) return cur;
           const loss = Math.max(cur.totalLossBb, scored.lossBb);
+          const severity = loss >= 5 ? "red" : loss >= 0.8 ? "yellow" : "green";
+          const wasReclassified = cur.severity === "green" && severity !== "green";
           return {
             ...cur,
             totalLossBb: loss,
             candidates: scored.candidates.map((c) => ({ label: c.label, ev: c.ev })),
             exploitLine: scored.best ? "착취 기준 최적: " + scored.best.label : cur.exploitLine,
-            severity: loss >= 5 ? "red" : loss >= 0.8 ? "yellow" : "green",
+            severity,
+            headline: wasReclassified && scored.best ? `${scored.best.label}가 더 나은 결정` : cur.headline,
+            body: wasReclassified && scored.best ? `간이 EV 비교에서 ${scored.best.label}의 기대값이 더 높았습니다.` : cur.body,
           };
         });
       });
@@ -202,10 +203,6 @@ export function TableScreen({
   }, [table, setProfile, setSession]);
 
   function nextHand() {
-    if (remainingDailyHands(profileRef.current) <= 0) {
-      setBlocked("오늘 무료 핸드를 다 썼습니다.");
-      return;
-    }
     const room = sessionRef.current.room;
     const bbChip = Math.round((room?.bb ?? 1) * 100);
     const limit = room?.buyInLimit ?? 0;
@@ -238,8 +235,12 @@ export function TableScreen({
   const heroTurn = !!table && table.toAct === 0 && table.street !== "complete";
   const tutorialOn = session.tutorial && session.handsPlayed < 30;
   const coach = table && (session.coachOn || tutorialOn) && heroTurn ? coachLine(table) : null;
-  const canL2 = true;
-
+  const hasDeepReview = !!badge && !!(badge.gtoLine || badge.exploitLine || badge.candidates?.length);
+  const actingName = table?.toAct === null || table?.toAct === undefined
+    ? null
+    : table.players[table.toAct]?.id === "hero"
+      ? "나"
+      : VILLAIN_BY_ID[table.players[table.toAct]?.id]?.name ?? "상대";
 
   if (blocked) {
     return (
@@ -257,7 +258,7 @@ export function TableScreen({
   return (
     <section className="screen play">
       <div className="playhud">
-        <button className="hud-exit" onClick={onExit}>종료</button>
+        <button className="hud-exit" onClick={() => setExitOpen(true)} aria-label="세션 종료 메뉴">종료</button>
         <b className="hud-stakes">{session.room ? `${session.room.sb ?? 0.5}/${session.room.bb ?? 1}` : "캐시"}</b>
         <span className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</span>
         <span className="hud-hand">#{table.handNumber}</span>
@@ -286,50 +287,54 @@ export function TableScreen({
       )}
 
       {heroTurn && legal && (
-        <div className="action">
-          <div className="acts">
-            <button className="btn fold glass" disabled={!legal.canFold && !legal.canCheck} onClick={() => act(legal.canCheck ? "check" : "fold")}>
-              {legal.canCheck ? "체크" : "폴드"}
-            </button>
-            <button className="btn call glass" disabled={!legal.canCall && !legal.canCheck} onClick={() => act(legal.canCall ? "call" : "check")}>
-              {legal.canCall ? `콜 ${bb(legal.callAmount)}` : "체크"}
-            </button>
-            <button
-              className="btn raise launch"
-              disabled={!legal.canBet}
-              onClick={() => {
-                setRaiseOn((v) => !v);
-                setRaiseTo(legal.minBet);
-              }}
-            >
-              {legal.callAmount > 0 ? "레이즈" : "벳"} {bb(legal.minBet)}+
-            </button>
-          </div>
-          {legal.canCall && legal.callAmount > 0 && (
-            <div className="odds-line">팟오즈 {Math.round((legal.callAmount / (legal.pot + legal.callAmount)) * 100)}%</div>
-          )}
+        <div className="action" aria-label="플레이 액션">
           {raiseOn && (
-            <>
+            <div className="raise-tray">
+              <div className="raise-head"><span>{legal.callAmount > 0 ? "레이즈 금액" : "베팅 금액"}</span><b>{bb(raiseTo)}</b></div>
               <div className="sizes">
-                {presets.map((p) => (
-                  <button key={p.label} className={raiseTo === p.to ? "on" : ""} onClick={() => setRaiseTo(p.to)}>
-                    {p.label}
+                {presets.filter((preset) => preset.label !== "올인").map((preset) => (
+                  <button key={preset.label} className={raiseTo === preset.to ? "on" : ""} aria-pressed={raiseTo === preset.to} onClick={() => setRaiseTo(preset.to)}>
+                    {preset.label}
                   </button>
                 ))}
               </div>
-              <input type="range" min={legal.minBet} max={legal.maxRaiseTo} step={BB / 2} value={raiseTo} onChange={(e) => setRaiseTo(Number(e.target.value))} />
-              <button className="btn launch wide" style={{ marginTop: 8 }} onClick={() => act(legal.callAmount > 0 ? "raise" : "bet", raiseTo)}>
-                {bb(raiseTo)} 확인
-              </button>
-            </>
+              <input aria-label="베팅 금액" type="range" min={legal.minBet} max={legal.maxRaiseTo} step={Math.max(1, table.bb / 2)} value={raiseTo} onChange={(e) => setRaiseTo(Number(e.target.value))} />
+              <div className="raise-confirm">
+                <button className="btn ghost" onClick={() => setRaiseOn(false)}>취소</button>
+                <button className="btn primary" onClick={() => act(legal.callAmount > 0 ? "raise" : "bet", raiseTo)}>{bb(raiseTo)}로 확정</button>
+              </div>
+            </div>
           )}
+          <div className="acts acts-four">
+            <button className="action-button fold" disabled={!legal.canFold} onClick={() => act("fold")}>
+              <span>폴드</span><small>{legal.canFold ? "포기" : "불가"}</small>
+            </button>
+            <button className="action-button call" disabled={!legal.canCall && !legal.canCheck} onClick={() => act(legal.canCall ? "call" : "check")}>
+              <span>{legal.canCall ? "콜" : "체크"}</span>
+              <small>{legal.canCall ? `${bb(legal.callAmount)} · 팟오즈 ${Math.round((legal.callAmount / (legal.pot + legal.callAmount)) * 100)}%` : "넘기기"}</small>
+            </button>
+            <button
+              className={`action-button raise ${raiseOn ? "on" : ""}`}
+              disabled={!legal.canBet}
+              aria-expanded={raiseOn}
+              onClick={() => {
+                setRaiseOn((value) => !value);
+                setRaiseTo(legal.minBet);
+              }}
+            >
+              <span>{legal.callAmount > 0 ? "레이즈" : "벳"}</span><small>{bb(legal.minBet)}+</small>
+            </button>
+            <button className="action-button allin" disabled={!legal.canBet} onClick={() => act("allin", legal.maxRaiseTo)}>
+              <span>올인</span><small>전부</small>
+            </button>
+          </div>
         </div>
       )}
 
       {!heroTurn && table.street !== "complete" && (
-        <div className="waitbar">
-          <i className="orbit" />
-          <span>{thinking ? "생각 중" : "진행 중"}</span>
+        <div className="waitbar" aria-live="polite">
+          <i className="orbit" aria-hidden="true" />
+          <span>{actingName ? `${actingName} ${thinking ? "생각 중" : "차례"}` : "핸드가 진행 중입니다"}</span>
         </div>
       )}
 
@@ -337,22 +342,25 @@ export function TableScreen({
         <div className="endbar">
           {badge && (
             <button className="end-rev" onClick={() => setOpenReview(true)}>
-              <i className={`dot ${badge.severity}`} />
-              <span>{badge.headline}</span>
+              <i className={`dot ${badge.severity}`} aria-hidden="true" />
+              <span><b>리뷰 보기</b><small>{badge.headline}</small></span>
+              <span className="chevron" aria-hidden="true">›</span>
             </button>
           )}
-          <button className="btn launch wide" onClick={nextHand}>다음 핸드</button>
+          <button className="btn primary wide" onClick={nextHand}>다음 핸드</button>
         </div>
       )}
 
       {openReview && badge && (
-        <div className="sheet revsheet" onClick={() => setOpenReview(false)}>
+        <div className="sheet revsheet" role="dialog" aria-modal="true" aria-label="핸드 복기" onClick={() => setOpenReview(false)}>
           <div className="panel" onClick={(e) => e.stopPropagation()}>
-            <div className="row"><span className="eyebrow">{deep ? "심층" : "복기"}</span><span className="muted">{badge.statValue}</span></div>
-            <div className="reco tight">
+            <div className="sheet-handle" aria-hidden="true" />
+            <div className="row"><span className="eyebrow">{deep ? "상세 복기" : "핸드 복기"}</span><span className="muted">{badge.statValue}</span></div>
+            <div className={`reco tight ${badge.severity}`}>
+              <div className="review-kicker"><i className={`dot ${badge.severity}`} aria-hidden="true" />{badge.severity === "green" ? "좋은 결정" : badge.severity === "yellow" ? "확인할 결정" : "큰 손실 결정"}</div>
               <b>{badge.headline}</b>
               <p>{badge.body}</p>
-              <div className="conf">-{badge.totalLossBb}bb</div>
+              <div className="conf">{badge.totalLossBb > 0 ? `손실 ${badge.totalLossBb}bb` : "추정 손실 없음"}</div>
             </div>
             {badge.streets && badge.streets.length > 0 && (
               <div className="street-rows">
@@ -367,42 +375,38 @@ export function TableScreen({
                 ))}
               </div>
             )}
-            {deep && (
-              <>
-                <div className="card">
-                  <b>GTO 기준</b>
-                  <p className="kicker">{badge.gtoLine}</p>
-                  <b>착취 기준</b>
-                  <p className="kicker">{badge.exploitLine}</p>
-                </div>
-                {badge.candidates?.map((c) => (
-                  <div key={c.label} className="row" style={{ marginTop: 6 }}>
-                    <span>{c.label}</span>
-                    <b>{c.ev >= 0 ? "+" : ""}{c.ev.toFixed(1)}bb</b>
+            {deep && hasDeepReview && (
+              <div className="deep-review">
+                {badge.gtoLine && <div><b>기본 전략</b><p>{badge.gtoLine}</p></div>}
+                {badge.exploitLine && <div><b>상대 맞춤 전략</b><p>{badge.exploitLine}</p></div>}
+                {badge.candidates && badge.candidates.length > 0 && (
+                  <div className="candidate-list">
+                    {badge.candidates.map((candidate) => <span key={candidate.label}><b>{candidate.label}</b><em>{candidate.ev >= 0 ? "+" : ""}{candidate.ev.toFixed(1)}bb</em></span>)}
                   </div>
-                ))}
-                <p className="kicker">이 실수는 이번 세션 {session.reviews.filter((r) => r.headline === badge.headline).length}번째입니다.</p>
-              </>
+                )}
+                {badge.totalLossBb > 0 && <p className="repeat-note">이번 세션에서 같은 유형이 {session.reviews.filter((review) => review.headline === badge.headline).length}번 나왔습니다.</p>}
+              </div>
             )}
-            <div className="grid2" style={{ marginTop: 8 }}>
-              <button
-                className="btn"
-                disabled={!canL2 && !deep}
-                onClick={() => {
-                  if (!deep) {
-                    const s = structuredClone(sessionRef.current);
-                    s.l2Used += 1;
-                    sessionRef.current = s;
-                    setSession(s);
-                  }
-                  setDeep((v) => !v);
-                }}
-              >
-                {deep ? "간단히" : canL2 ? "자세히" : "L2 한도"}
+            <div className="review-actions">
+              <button className="btn glass" disabled={!hasDeepReview} onClick={() => setDeep((value) => !value)}>{deep ? "간단히 보기" : "자세히 보기"}</button>
+              <button className="btn primary" onClick={() => { setOpenReview(false); if (table.street === "complete") nextHand(); }}>
+                {table.street === "complete" ? "다음 핸드" : "테이블로"}
               </button>
-              <button className="btn launch" onClick={() => { setOpenReview(false); if (table.street === "complete") nextHand(); }}>
-                닫고 계속
-              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {exitOpen && (
+        <div className="sheet exit-sheet" role="dialog" aria-modal="true" aria-label="세션 종료 확인" onClick={() => setExitOpen(false)}>
+          <div className="panel" onClick={(event) => event.stopPropagation()}>
+            <div className="sheet-handle" aria-hidden="true" />
+            <span className="eyebrow">SESSION</span>
+            <h2>테이블을 나갈까요?</h2>
+            <p>현재까지의 핸드와 분석 기록은 저장됩니다. 진행 중인 핸드는 이어서 칠 수 없어요.</p>
+            <div className="review-actions">
+              <button className="btn glass" onClick={() => setExitOpen(false)}>계속 플레이</button>
+              <button className="btn danger" onClick={onExit}>세션 종료</button>
             </div>
           </div>
         </div>

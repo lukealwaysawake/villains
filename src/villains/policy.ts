@@ -65,7 +65,7 @@ function sizingTo(state: TableState, seat: number, potFrac: number, overbet = fa
   const p = state.players[seat];
   const legal = legalActions(state, seat);
   const toCall = legal.callAmount;
-  const pot = Math.max(legal.pot, BB);
+  const pot = Math.max(legal.pot, state.bb || BB);
   const frac = overbet ? 1.25 : potFrac;
   const add = Math.round(toCall + pot * frac + toCall);
   const target = p.contributedStreet + Math.max(legal.minBet - p.contributedStreet, add - p.contributedStreet);
@@ -128,7 +128,8 @@ export function decideVillain(
   const pfPct = percentile(pf);
   const toCall = legal.callAmount;
   const pot = potTotal(state);
-  const potBb = pot / BB;
+  const bigBlind = state.bb || BB;
+  const potBb = pot / bigBlind;
   const street = state.street === "complete" || state.street === "showdown" ? "river" : state.street;
   const raises = facingBets(state);
   const mixKey = `${def.id}:${street}:${pos}:${Math.round(pf)}:${toCall > 0}`;
@@ -172,7 +173,7 @@ export function decideVillain(
     // Passive types limp the tail of their range instead of raising it.
     const passivity = 1 - Math.min(1, stats.pfr / Math.max(1, stats.vpip));
     const limpThresh = passivity > 0.45 ? vpipThresh : 0;
-    if (toCall === 0 || (toCall <= BB && raises === 0 && player.contributedStreet >= BB)) {
+    if (toCall === 0 || (toCall <= bigBlind && raises === 0 && player.contributedStreet >= bigBlind)) {
       const stealWide = madamBtn ? 1.5 : 1;
       if (pfPct <= openThresh * stealWide && legal.canBet) {
         const frac = pos === "BTN" || pos === "CO" ? 2.3 : 2.5;
@@ -180,11 +181,11 @@ export function decideVillain(
       }
       if (pfPct <= limpThresh && legal.canCall) return act("call");
       if (legal.canCheck) return act("check");
-      if (pfPct <= vpipThresh && legal.canCall && toCall <= BB) return act("call");
+      if (pfPct <= vpipThresh && legal.canCall && toCall <= bigBlind) return act("call");
       return act("fold");
     }
 
-    const facingOpen = toCall <= BB * 3.5 && raises <= 1;
+    const facingOpen = toCall <= bigBlind * 3.5 && raises <= 1;
     const facing3 = raises >= 2;
     const facing4 = raises >= 3;
 

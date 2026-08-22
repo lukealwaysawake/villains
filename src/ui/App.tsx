@@ -5,7 +5,6 @@ import {
   defaultRoom,
   rememberRoom,
   canResume,
-  isUnlocked,
   loadProfile,
   masteryPct,
   saveProfile,
@@ -27,11 +26,18 @@ import { Analyze } from "./Analyze";
 import { SessionRecap } from "./SessionRecap";
 import { CreateRoom } from "./CreateRoom";
 
+function practiceLineup(primaryId: string): string[] {
+  const fillers = ["uncleho", "nitlee", "stationpark", "foldjeong", "weekend", "bulldozer"];
+  return [...new Set([primaryId, ...fillers])].slice(0, 5);
+}
+
 export function App() {
   const [profile, setProfileState] = useState<Profile>(() => loadProfile());
   const [screen, setScreen] = useState<Screen>(profile.onboardingDone ? "home" : "onboarding");
   const [session, setSession] = useState<Session | null>(profile.lastSession ?? null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [detailBack, setDetailBack] = useState<"home" | "dex">("dex");
+  const [pendingStart, setPendingStart] = useState<{ ids: string[]; presetId?: string; tutorial: boolean; room?: RoomConfig; baseProfile: Profile } | null>(null);
 
   function setProfile(next: Profile) {
     setProfileState(next);
@@ -42,14 +48,14 @@ export function App() {
     setScreen(s);
   }
 
-  function start(ids: string[], presetId?: string, tutorial = false, room?: RoomConfig) {
-    if (session && session.handsPlayed > 0 && session.liveTable && session.liveTable.street !== "complete") {
-      const ok = window.confirm("진행 중인 테이블이 있습니다. 종료하고 새로 앉을까요?");
-      if (!ok) return;
+  function start(ids: string[], presetId?: string, tutorial = false, room?: RoomConfig, baseProfile: Profile = profile, confirmed = false) {
+    if (!confirmed && session?.liveTable && session.liveTable.street !== "complete") {
+      setPendingStart({ ids, presetId, tutorial, room, baseProfile });
+      return;
     }
-    const archived = archiveSession({ ...profile }, session);
+    const archived = archiveSession({ ...baseProfile }, session);
     const s = createSession(ids, presetId, { tutorial, room });
-    setProfile(rememberRoom(archived, s.room ?? defaultRoom(), ids));
+    setProfile(rememberRoom(archived, s.room ?? defaultRoom(), s.villainIds));
     setSession(s);
     setScreen("table");
   }
@@ -58,9 +64,13 @@ export function App() {
     <div className="shell">
       {screen === "onboarding" && (
         <Onboarding
-          onDone={() => {
+          onQuickStart={() => {
             const next = { ...profile, onboardingDone: true };
-            setProfile(next);
+            const room = defaultRoom({ name: "입문 테이블", seats: 4, sb: 0.5, bb: 1, startStack: 100 });
+            start(["uncleho", "nitlee", "stationpark"], "intro", true, room, next);
+          }}
+          onCustomize={() => {
+            setProfile({ ...profile, onboardingDone: true });
             go("create-room");
           }}
         />
@@ -76,6 +86,11 @@ export function App() {
             if (!lr) return go("create-room");
             start(lr.villainIds, "custom", false, lr.room);
           }}
+          openVillain={(id) => {
+            setDetailId(id);
+            setDetailBack("home");
+            setScreen("detail");
+          }}
         />
       )}
       {screen === "table" && session && (
@@ -85,7 +100,9 @@ export function App() {
           session={session}
           setSession={setSession}
           onExit={() => {
-            const next = archiveSession({ ...profile }, session);
+            const ended = { ...session, liveTable: null };
+            const next = archiveSession({ ...profile, lastSession: ended }, ended);
+            setSession(ended);
             setProfile(next);
             setScreen("report");
           }}
@@ -97,6 +114,7 @@ export function App() {
           profile={profile}
           open={(id) => {
             setDetailId(id);
+            setDetailBack("dex");
             setScreen("detail");
           }}
         />
@@ -106,8 +124,8 @@ export function App() {
           id={detailId}
           profile={profile}
           setProfile={setProfile}
-          back={() => go("dex")}
-          duel={() => start([detailId, "uncleho", "nitlee", "stationpark", "foldjeong"].slice(0, 5))}
+          back={() => go(detailBack)}
+          duel={() => start(practiceLineup(detailId))}
         />
       )}
       {screen === "reviews" && (
@@ -122,25 +140,45 @@ export function App() {
       {(screen === "history" || screen === "analyze") && <Analyze profile={profile} go={go} />}
       {screen === "create-room" && (
         <CreateRoom
-          profile={profile}
           initial={profile.lastRoom ? { ...profile.lastRoom.room, villainIds: profile.lastRoom.villainIds } : undefined}
           onBack={() => go("home")}
           onCreate={(room, ids) => start(ids, "custom", false, room)}
         />
       )}
-      <Nav screen={screen} go={go} hidden={screen === "table" || screen === "onboarding" || screen === "create-room"} />
+      <Nav screen={screen} go={go} hidden={["table", "onboarding", "create-room", "report", "detail", "reviews", "fairness"].includes(screen)} />
+      {pendingStart && (
+        <div className="app-confirm" role="dialog" aria-modal="true" aria-label="새 테이블 시작 확인" onClick={() => setPendingStart(null)}>
+          <div className="panel" onClick={(event) => event.stopPropagation()}>
+            <div className="sheet-handle" aria-hidden="true" />
+            <span className="eyebrow">NEW TABLE</span>
+            <h2>진행 중인 핸드를 바꿀까요?</h2>
+            <p>현재 핸드는 종료되고, 선택한 상대와 새 테이블이 시작됩니다.</p>
+            <div className="review-actions">
+              <button className="btn glass" onClick={() => setPendingStart(null)}>취소</button>
+              <button className="btn danger" onClick={() => {
+                const request = pendingStart;
+                setPendingStart(null);
+                start(request.ids, request.presetId, request.tutorial, request.room, request.baseProfile, true);
+              }}>새 테이블 시작</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function Onboarding({ onDone }: { onDone: () => void }) {
+function Onboarding({ onQuickStart, onCustomize }: { onQuickStart: () => void; onCustomize: () => void }) {
   return (
     <section className="screen boot">
       <div className="splash-hero" aria-hidden="true" />
       <div className="splash-shade" aria-hidden="true" />
       <div className="boot-top">
         <img className="splash-mark" src="/brand/mark.jpg" alt="" />
-        <div className="eyebrow">VILLAINS</div>
+        <div>
+          <div className="eyebrow">VILLAINS</div>
+          <span className="boot-label">NLHE 상대 읽기 트레이너</span>
+        </div>
       </div>
       <div className="boot-stage" aria-hidden="true">
         <div className="boot-felt">
@@ -157,10 +195,17 @@ function Onboarding({ onDone }: { onDone: () => void }) {
         <div className="boot-ava a2"><Avatar id="nitlee" /></div>
         <div className="boot-ava a3"><Avatar id="stationpark" /></div>
       </div>
-      <h1 className="brand on-title">읽을 수 있는<br/>상대</h1>
+      <div className="boot-copy">
+        <h1 className="on-title">상대를 읽고<br/>더 좋은 결정을.</h1>
+        <p>연습 칩으로 플레이하고, 매 핸드 놓친 착취 포인트를 바로 복기합니다.</p>
+      </div>
       <div className="on-body">
-        <p className="kicker">인원이랑 상대를 고르고 앉는다.</p>
-        <button className="btn primary wide" onClick={onDone}>테이블 구성</button>
+        <div className="quick-lineup" aria-label="추천 상대 삼촌, 이대리, 박사장">
+          <span>4인 · $0.5/$1 · $100</span>
+          <div><Avatar id="uncleho" /><Avatar id="nitlee" /><Avatar id="stationpark" /></div>
+        </div>
+        <button className="btn primary wide" onClick={onQuickStart}>추천 테이블에 앉기</button>
+        <button className="btn ghost wide" onClick={onCustomize}>상대와 금액 바꾸기</button>
       </div>
     </section>
   );
@@ -172,84 +217,81 @@ function Home({
   go,
   resume,
   again,
+  openVillain,
 }: {
   profile: Profile;
   session: Session | null;
   go: (s: Screen) => void;
   resume: () => void;
   again: () => void;
+  openVillain: (id: string) => void;
 }) {
   const lastRoom = profile.lastRoom;
   const live = canResume(session);
+  const lineup = (lastRoom?.villainIds.length ? lastRoom.villainIds : ["uncleho", "nitlee", "stationpark"]).slice(0, 3);
   const focus = useMemo(() => {
     const worst = Object.entries(profile.mastery)
       .filter(([, m]) => m.handsPlayed >= 20)
       .sort((a, b) => a[1].bb / a[1].handsPlayed - b[1].bb / b[1].handsPlayed)[0];
     const habit = topHabits(profile, 2)[0];
-    if (habit) return `${habit.tag} · ${habit.count}회. 분석 탭에서 보세요.`;
-    if (!worst) return "삼촌이랑 박사장부터 붙어 보세요.";
-    return `${VILLAIN_BY_ID[worst[0]].name}한테 제일 많이 잃었습니다.`;
+    if (habit) return `${habit.tag}이 ${habit.count}번 반복됐어요. 다음 테이블에서 먼저 확인하세요.`;
+    if (!worst) return "첫 목표는 상대의 콜 빈도와 프리플랍 공격성을 구분하는 것입니다.";
+    return `${VILLAIN_BY_ID[worst[0]].name} 상대로 가장 많은 손실이 났어요.`;
   }, [profile]);
 
+  const room = lastRoom?.room ?? defaultRoom();
   return (
-    <section className="screen">
+    <section className="screen home-screen">
       <div className="atmosphere" aria-hidden="true"><i /><i /><i /></div>
-      <div className="home-hero">
-        <img src="/brand/hero.jpg" alt="" />
-        <div className="home-hero-copy">
+      <header className="home-header">
+        <div className="home-brand">
           <img src="/brand/mark.jpg" alt="" />
+          <div><b>VILLAINS</b><span>상대 읽기 트레이너</span></div>
+        </div>
+        <span className="stat-pill">{profile.lifetimeHands} 핸드</span>
+      </header>
+
+      <section className="table-card" aria-labelledby="home-table-title">
+        <div className="table-card-head">
           <div>
-            <b>VILLAINS</b>
-            <small>착취 연습 · {profile.lifetimeHands}핸드</small>
+            <span className="eyebrow">{live ? "진행 중" : lastRoom ? "지난 테이블" : "추천 테이블"}</span>
+            <h1 id="home-table-title">{lastRoom?.room.name ?? "입문 테이블"}</h1>
+            <p>${room.sb}/${room.bb} · {room.seats}인 · 바이인 ${room.startStack}</p>
           </div>
-        </div>
-      </div>
-      {(live || lastRoom) && (
-        <div className="card resume-card">
-          <div className="row">
-            <span className="eyebrow">지난 테이블</span>
-            {session && session.handsPlayed > 0 && (
-              <b className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</b>
-            )}
-          </div>
-          <div className="rc-line">
-            <b>{lastRoom?.room.name ?? "캐시 테이블"}</b>
-            <span className="muted">
-              ${lastRoom?.room.sb ?? 0.5}/${lastRoom?.room.bb ?? 1} · {lastRoom?.room.seats ?? 4}인 · 바이인 ${lastRoom?.room.startStack ?? 100}
-            </span>
-          </div>
-          {lastRoom && lastRoom.villainIds.length > 0 && (
-            <div className="rc-ava">
-              {lastRoom.villainIds.map((id) => <Avatar key={id} id={id} />)}
-            </div>
+          {session && session.handsPlayed > 0 && (
+            <b className={`session-result ${session.bbDelta >= 0 ? "good" : "bad"}`}>{signedBb(session.bbDelta)}</b>
           )}
-          <div className="grid2" style={{ marginTop: 10 }}>
-            <button className="btn glass" disabled={!live} onClick={resume}>
-              {live ? `이어하기 #${session?.handNumber ?? 1}` : "이어할 판 없음"}
-            </button>
-            <button className="btn launch" onClick={again}>새로하기</button>
-          </div>
         </div>
-      )}
-      <div className="insight">
-        <div className="row"><span className="idx">01</span><span className="eyebrow">오늘</span></div>
-        <p className="kicker" style={{ marginTop: 8 }}>{focus}</p>
+        <div className="lineup-row">
+          <div className="avatar-stack">{lineup.map((id) => <Avatar key={id} id={id} />)}</div>
+          <span>{lineup.map((id) => VILLAIN_BY_ID[id]?.name).join(" · ")}</span>
+        </div>
+        <button className="btn primary wide" onClick={live ? resume : again}>
+          {live ? `#${session?.handNumber ?? 1} 이어서 플레이` : lastRoom ? "같은 테이블 다시 시작" : "추천 테이블 시작"}
+        </button>
+        <button className="btn ghost wide" onClick={() => go("create-room")}>상대와 금액 바꾸기</button>
+      </section>
+
+      <button className="insight home-insight" onClick={() => go("analyze")}>
+        <span className="insight-icon" aria-hidden="true">↗</span>
+        <span><small>오늘의 포커스</small><b>{focus}</b></span>
+        <span className="chevron" aria-hidden="true">›</span>
+      </button>
+
+      <div className="section-head">
+        <div><span className="eyebrow">LINEUP</span><h2>오늘의 상대</h2></div>
+        <button className="text-link" onClick={() => go("dex")}>전체 15명</button>
       </div>
-      <button className="btn launch wide" style={{ margin: "12px 0 8px" }} onClick={() => go("create-room")}>테이블</button>
-      <button className="btn glass wide" onClick={() => go("analyze")}>분석 · 기보</button>
-      <div className="row" style={{ margin: "8px 0 10px" }}>
-        <b>빌런 숙련도</b>
-        <button className="btn ghost" onClick={() => go("dex")}>도감</button>
-      </div>
-      <div className="villain-grid">
-        {VILLAINS.map((v) => {
-          const pct = masteryPct(profile.mastery[v.id]);
+      <div className="opponent-list">
+        {lineup.map((id) => {
+          const villain = VILLAIN_BY_ID[id];
+          const pct = masteryPct(profile.mastery[id]);
           return (
-            <button key={v.id} className="vcell" onClick={() => go("dex")}>
-              <Avatar id={v.id} />
-              <div className="name">{v.name}</div>
-              <div className="sub">TIER {v.tier}</div>
-              <div className="bar"><i style={{ width: `${pct}%` }} /></div>
+            <button key={id} className="opponent-row" onClick={() => openVillain(id)}>
+              <Avatar id={id} />
+              <span className="opponent-copy"><b>{villain.name}</b><small>{villain.archetype}</small></span>
+              <span className="mastery"><b>{pct}%</b><small>숙련</small></span>
+              <span className="chevron" aria-hidden="true">›</span>
             </button>
           );
         })}
@@ -260,27 +302,29 @@ function Home({
 
 function Dex({ profile, open }: { profile: Profile; open: (id: string) => void }) {
   return (
-    <section className="screen">
-      <div className="topbar">
-        <div className="brand">도감<small>15 VILLAINS</small></div>
+    <section className="screen dex-screen">
+      <div className="page-title">
+        <span className="eyebrow">OPPONENTS</span>
+        <h1>상대 도감</h1>
+        <p>플레이 성향과 발견한 약점을 확인하세요.</p>
       </div>
       {(["S", "A", "B", "C"] as const).map((tier) => (
         <div key={tier}>
           <div className="eyebrow" style={{ margin: "12px 0 8px" }}>TIER {tier}</div>
           {VILLAINS.filter((v) => v.tier === tier).map((v) => {
-            const lock = !isUnlocked(profile, v.id);
             const m = profile.mastery[v.id];
             return (
-              <button key={v.id} className="list-item" style={{ width: "100%", textAlign: "left" }} onClick={() => open(v.id)}>
+              <button key={v.id} className="list-item villain-list-item" onClick={() => open(v.id)}>
                 <Avatar id={v.id} />
-                <div style={{ flex: 1 }}>
+                <div className="list-copy">
                   <div className="row">
-                    <b>{lock ? "잠김" : v.name}</b>
+                    <b>{v.name}</b>
                     <span className="tier">{v.tier}</span>
                   </div>
-                  <div className="kicker">{lock ? v.unlock : v.archetype}</div>
-                  <div className="bar"><i style={{ width: `${lock ? 0 : masteryPct(m)}%` }} /></div>
+                  <div className="kicker">{v.archetype}</div>
+                  <div className="bar"><i style={{ width: `${masteryPct(m)}%` }} /></div>
                 </div>
+                <span className="chevron" aria-hidden="true">›</span>
               </button>
             );
           })}
@@ -307,13 +351,17 @@ function Detail({
   const m = profile.mastery[id];
   const canHint = canShowHint(profile, id);
   return (
-    <section className="screen">
-      <button className="btn" onClick={back}>도감</button>
-      <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "16px 0" }}>
+    <section className="screen detail-screen">
+      <header className="page-header">
+        <button className="icon-button" onClick={back} aria-label="이전 화면으로 돌아가기">‹</button>
+        <span className="eyebrow">OPPONENT</span>
+        <span className="header-spacer" />
+      </header>
+      <div className="detail-hero">
         <Avatar id={id} size="lg" />
         <div>
           <div className="eyebrow">{v.handle}</div>
-          <h1>{lock ? "???" : v.name}</h1>
+          <h1>{v.name}</h1>
           <div className="kicker">{v.archetype}</div>
         </div>
       </div>
@@ -400,24 +448,29 @@ function Reviews({ profile, setProfile, go }: { profile: Profile; setProfile: (p
 
 function SettingsScreen({ profile, setProfile, go }: { profile: Profile; setProfile: (p: Profile) => void; go: (s: Screen) => void }) {
   const s = profile.settings;
+  const [transferMessage, setTransferMessage] = useState("");
   function patch(partial: Partial<Profile["settings"]>) {
     setProfile({ ...profile, settings: { ...s, ...partial } });
   }
   return (
-    <section className="screen">
-      <h1>설정</h1>
-      <div className="card">
-        <b>HUD</b>
+    <section className="screen settings-screen">
+      <div className="page-title">
+        <span className="eyebrow">PREFERENCES</span>
+        <h1>설정</h1>
+        <p>테이블에서 보이는 정보와 복기 흐름을 조절합니다.</p>
+      </div>
+      <div className="card setting-card">
+        <div className="setting-heading"><b>테이블 정보</b><p>상대 통계를 얼마나 자세히 볼지 선택하세요.</p></div>
         <div className="grid2" style={{ marginTop: 8 }}>
           {(["learn", "standard", "split", "off"] as const).map((m) => (
             <button key={m} className={`sel ${s.hudMode === m ? "on" : ""}`} onClick={() => patch({ hudMode: m })}>
-              {m === "learn" ? "학습" : m === "standard" ? "표준" : m === "split" ? "조건부" : "관찰"}
+              {m === "learn" ? "항상" : m === "standard" ? "기본" : m === "split" ? "선택한 상대" : "끄기"}
             </button>
           ))}
         </div>
       </div>
-      <div className="card">
-        <b>리뷰 자동 정지</b>
+      <div className="card setting-card">
+        <div className="setting-heading"><b>자동 복기</b><p>어떤 결과에서 핸드를 멈추고 복기를 열지 선택하세요.</p></div>
         <div className="grid2" style={{ marginTop: 8 }}>
           {(["off", "red", "yellow", "all"] as const).map((m) => (
             <button key={m} className={`sel ${s.reviewPause === m ? "on" : ""}`} onClick={() => patch({ reviewPause: m })}>
@@ -426,8 +479,8 @@ function SettingsScreen({ profile, setProfile, go }: { profile: Profile; setProf
           ))}
         </div>
       </div>
-      <div className="card">
-        <b>슬로우롤 텔</b>
+      <div className="card setting-card">
+        <div className="setting-heading"><b>타이밍 텔 난이도</b><p>상대의 행동 속도에서 얻는 단서를 조절합니다.</p></div>
         <div className="grid3" style={{ marginTop: 8 }}>
           {[
             [0.9, "쉬움"],
@@ -440,35 +493,43 @@ function SettingsScreen({ profile, setProfile, go }: { profile: Profile; setProf
           ))}
         </div>
       </div>
-      <div className="card">
-        <b>애니메이션</b>
-        <input type="range" min={0.7} max={2} step={0.1} value={s.animSpeed} onChange={(e) => patch({ animSpeed: Number(e.target.value) })} />
+      <div className="card setting-card">
+        <div className="setting-heading row"><div><b>진행 속도</b><p>카드와 상대 액션의 재생 속도입니다.</p></div><span className="form-value">{s.animSpeed < 0.9 ? "느리게" : s.animSpeed > 1.3 ? "빠르게" : "보통"}</span></div>
+        <input aria-label="진행 속도" type="range" min={0.7} max={2} step={0.1} value={s.animSpeed} onChange={(e) => patch({ animSpeed: Number(e.target.value) })} />
       </div>
-      <button className="btn wide" onClick={() => go("fairness")}>공정성 검증 / 자기대전</button>
+      <div className="settings-section-label">데이터</div>
+      <button className="btn glass wide" onClick={() => go("fairness")}>게임 엔진과 공정성 확인</button>
       <button className="btn glass wide" style={{ marginTop: 8 }} onClick={() => {
         const blob = new Blob([exportProfile(profile)], { type: "application/json" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
         a.download = "villains-profile.json";
         a.click();
+        setTransferMessage("기록 파일을 저장했습니다.");
       }}>기록 내보내기</button>
-      <label className="btn glass wide" style={{ marginTop: 8, display: "grid", placeItems: "center" }}>
+      <label className="btn glass wide import-button" role="button" tabIndex={0}>
         기록 가져오기
         <input type="file" accept="application/json" hidden onChange={(e) => {
           const file = e.target.files?.[0];
           if (!file) return;
           file.text().then((raw) => {
-            try { setProfile(importProfile(raw)); } catch { /* ignore bad file */ }
+            try {
+              setProfile(importProfile(raw));
+              setTransferMessage("기록을 가져왔습니다.");
+            } catch {
+              setTransferMessage("파일을 읽지 못했습니다. VILLAINS 기록 파일인지 확인하세요.");
+            }
           });
         }} />
       </label>
+      {transferMessage && <p className="transfer-status" role="status">{transferMessage}</p>}
     </section>
   );
 }
 
 function Fairness({ session, go }: { session: Session | null; go: (s: Screen) => void }) {
   const [server, setServer] = useState(session?.fairness?.seedServer ?? "");
-  const [hash, setHash] = useState(session?.fairness?.seedServerHash ?? "");
+  const [hash] = useState(session?.fairness?.seedServerHash ?? "");
   const [ok, setOk] = useState<string>("");
   const [rows, setRows] = useState<{ id: string; name: string; bb100: number; hands: number }[] | null>(null);
   const [probe, setProbe] = useState<BehaviorRow[] | null>(null);

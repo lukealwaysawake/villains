@@ -1,4 +1,4 @@
-import type { Card, Rank } from "./types";
+import type { Card } from "./types";
 import { chenStrength100 } from "./chen";
 
 export const CAT = {
@@ -33,8 +33,9 @@ for (let a = 0; a < 7; a++) {
 }
 
 function pack(category: number, ranks: number[]): number {
+  // Use a fixed-width base-15 score so category always outranks kickers.
   let value = category;
-  for (const rank of ranks) value = value * 15 + rank;
+  for (let i = 0; i < 5; i++) value = value * 15 + (ranks[i] ?? 0);
   return value;
 }
 
@@ -152,10 +153,6 @@ export interface SpotRead {
   strength: number;
 }
 
-function boardRanks(board: Card[]): Rank[] {
-  return board.map((c) => c.rank).sort((a, b) => b - a);
-}
-
 export function readSpot(hole: [Card, Card], board: Card[]): SpotRead {
   const all = [...hole, ...board];
   const score = board.length >= 3 ? evaluateBest(all) : evaluate5([...hole, { rank: 2, suit: 0 }, { rank: 3, suit: 1 }, { rank: 4, suit: 2 }]);
@@ -186,7 +183,7 @@ export function readSpot(hole: [Card, Card], board: Card[]): SpotRead {
     board.length < 5 &&
     suits.some((n, s) => n === 4 && holeSuits.includes(s as 0 | 1 | 2 | 3));
 
-  const ranks = [...new Set(all.map((c) => c.rank))].sort((a, b) => b - a);
+  const ranks: number[] = [...new Set<number>(all.map((c) => c.rank))].sort((a, b) => b - a);
   if (ranks.includes(14)) ranks.push(1);
   let oesd = false;
   let gutshot = false;

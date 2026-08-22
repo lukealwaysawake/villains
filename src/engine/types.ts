@@ -73,10 +73,10 @@ export const BB = 100;
 export const SB = 50;
 export const START_STACK = 10000;
 
-export function chipsToBb(chips: number): number {
-  return Math.round((chips / BB) * 10) / 10;
+export function chipsToBb(chips: number, bigBlind = BB): number {
+  return Math.round((chips / Math.max(1, bigBlind)) * 10) / 10;
 }
 
-export function bbToChips(bb: number): number {
-  return Math.round(bb * BB);
+export function bbToChips(bb: number, bigBlind = BB): number {
+  return Math.round(bb * Math.max(1, bigBlind));
 }

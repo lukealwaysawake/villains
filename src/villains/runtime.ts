@@ -1,7 +1,6 @@
 import { chipsToBb } from "../engine/types";
 import type { TableState } from "../engine/game";
 import { VILLAIN_BY_ID } from "./catalog";
-import { linesFor } from "./dialogue";
 import type { TriggerType, VillainRuntime } from "./types";
 
 export interface SpeechEvent {
@@ -51,7 +50,7 @@ export function onHandEnd(args: {
     if (!rt) continue;
     const def = VILLAIN_BY_ID[p.id];
     const delta = result.deltas[p.id] ?? 0;
-    const bb = chipsToBb(delta);
+    const bb = chipsToBb(delta, args.state.bb);
 
     if (rt.emotionRemainingHands > 0) {
       rt.emotionRemainingHands -= 1;
@@ -75,7 +74,7 @@ export function onHandEnd(args: {
       rt.emotionRemainingHands = 8;
       const s = maybeSpeak(rt, "SCARED_ENTER", args.state.handNumber);
       if (s) speeches.push(s);
-    } else if (p.stack >= 12000 && def.emotionProfile.sensitivity > 0) {
+    } else if (p.stack >= 120 * args.state.bb && def.emotionProfile.sensitivity > 0) {
       if (rt.emotion === "NORMAL" && Math.random() < 0.2) {
         rt.emotion = "CONFIDENT";
         rt.emotionRemainingHands = 10;
@@ -132,7 +131,7 @@ export function updateHeroRead(rt: VillainRuntime, state: TableState): void {
   if (facedCbet) {
     rt.heroRead.cbetFoldRate = rt.heroRead.cbetFoldRate * 0.85 + (heroFoldFlop ? 0.15 : 0);
   }
-  const three = heroActs.some((a) => a.street === "preflop" && (a.type === "raise" || a.type === "allin") && a.toCall >= 100);
+  const three = heroActs.some((a) => a.street === "preflop" && (a.type === "raise" || a.type === "allin") && a.toCall >= state.bb);
   rt.heroRead.threeBetFreq = rt.heroRead.threeBetFreq * 0.92 + (three ? 0.08 : 0);
 
   const over = state.actionLog.find((a) => a.actorId === rt.villainId && a.street === "river" && a.amount >= a.potBefore * 1.15);

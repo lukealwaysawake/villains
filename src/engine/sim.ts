@@ -41,7 +41,7 @@ export function roundRobin(hands = 1200): SimRow[] {
       const state = playHand(table, n % 6, `rr:${n}`, n + 1);
       if (state.result) {
         for (const id of table) {
-          acc[id].bb += chipsToBb(state.result.deltas[id] ?? 0);
+          acc[id].bb += chipsToBb(state.result.deltas[id] ?? 0, state.bb);
           acc[id].hands += 1;
         }
       }
@@ -60,11 +60,10 @@ export function roundRobin(hands = 1200): SimRow[] {
 export function exploitProbe(targetId: string, hands = 200): number {
   let bb = 0;
   for (let i = 0; i < hands; i++) {
-    const ids = ["hero", targetId, "songtag", "nitlee", "uncleho", "foldjeong"];
     // hero here is also a villain-policy seat named hero — use professor as filler and target as first
     const table = [targetId, "nitlee", "uncleho", "stationpark", "foldjeong", "weekend"];
     const state = playHand(table, i % 6, `ex:${targetId}:${i}`, i + 1);
-    if (state.result) bb += chipsToBb(state.result.deltas[targetId] ?? 0);
+    if (state.result) bb += chipsToBb(state.result.deltas[targetId] ?? 0, state.bb);
   }
   return (bb / hands) * 100;
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { PRESETS, VILLAINS } from "../villains/catalog";
-import { defaultRoom, type Profile, type RoomConfig } from "../state/store";
+import { PRESETS, VILLAINS, VILLAIN_BY_ID } from "../villains/catalog";
+import { defaultRoom, type RoomConfig } from "../state/store";
 import { Avatar } from "./bits";
 
 const STAKES = [
@@ -17,17 +17,18 @@ const LIMITS = [
   { n: 0, label: "무제한" },
 ];
 
-function moneyField(value: number, onChange: (n: number) => void, label: string) {
+function MoneyField({ value, onChange, label, step = 0.5 }: { value: number; onChange: (n: number) => void; label: string; step?: number }) {
   return (
     <label className="cash-field">
       <span>{label}</span>
       <span className="cash-in">
-        $
+        <span aria-hidden="true">$</span>
         <input
+          aria-label={label}
           type="number"
           inputMode="decimal"
           min={0.01}
-          step={0.5}
+          step={step}
           value={Number.isFinite(value) ? value : 0}
           onChange={(e) => onChange(Math.max(0, Number(e.target.value)))}
         />
@@ -41,7 +42,6 @@ export function CreateRoom({
   onBack,
   onCreate,
 }: {
-  profile?: Profile;
   initial?: Partial<RoomConfig>;
   onBack: () => void;
   onCreate: (room: RoomConfig, villainIds: string[]) => void;
@@ -55,125 +55,162 @@ export function CreateRoom({
   const [buyInLimit, setBuyInLimit] = useState(base.buyInLimit);
   const [autoRebuy, setAutoRebuy] = useState(base.autoRebuy);
   const [speed, setSpeed] = useState(base.speed);
-  const [picks, setPicks] = useState<string[]>(base.villainIds ?? ["uncleho", "nitlee", "stationpark"].slice(0, (base.seats || 4) - 1));
+  const [picks, setPicks] = useState<string[]>(base.villainIds ?? ["uncleho", "nitlee", "stationpark"].slice(0, base.seats - 1));
+
   const need = seats - 1;
-  const buyInBb = Math.max(20, Math.round((startStack || 1) / Math.max(bb, 0.01)));
-  const ready = picks.length === need && sb > 0 && bb >= sb && startStack >= bb;
+  const selected = picks.slice(0, need);
+  const rawBuyInBb = Math.round((startStack || 1) / Math.max(bb, 0.01));
+  const buyInBb = (rawBuyInBb >= 200 ? 200 : rawBuyInBb >= 100 ? 100 : 50) as 50 | 100 | 200;
+  const ready = selected.length === need && sb > 0 && bb >= sb && startStack >= bb;
+  const missing = Math.max(0, need - selected.length);
+  const readyReason = missing > 0 ? `상대 ${missing}명을 더 고르세요` : sb <= 0 || bb < sb ? "블라인드 금액을 확인하세요" : startStack < bb ? "바이인은 빅 블라인드보다 커야 합니다" : "";
+  const speedLabel = speed < 0.9 ? "느리게" : speed > 1.3 ? "빠르게" : "보통";
 
   function setSmall(n: number) {
     setSb(n);
     if (bb === sb * 2 || bb < n) setBb(Math.round(n * 2 * 100) / 100);
   }
 
-  function toggle(id: string) {
-    if (picks.includes(id)) setPicks(picks.filter((x) => x !== id));
-    else if (picks.length < need) setPicks([...picks, id]);
+  function changeSeats(n: 2 | 4 | 6) {
+    setSeats(n);
+    setPicks((current) => current.slice(0, n - 1));
   }
 
-  function fillPreset(ids: string[]) {
-    setPicks(ids.slice(0, need));
-    if (ids.length + 1 !== seats) setSeats((ids.length + 1 === 2 || ids.length + 1 === 4 ? ids.length + 1 : 6) as 2 | 4 | 6);
+  function toggle(id: string) {
+    if (selected.includes(id)) setPicks(selected.filter((x) => x !== id));
+    else if (selected.length < need) setPicks([...selected, id]);
+  }
+
+  function fillPreset(ids: readonly string[]) {
+    const targetSeats = ids.length + 1 <= 2 ? 2 : ids.length + 1 <= 4 ? 4 : 6;
+    setSeats(targetSeats);
+    setPicks([...ids].slice(0, targetSeats - 1));
   }
 
   const room: RoomConfig = {
     name: name.trim() || "캐시 테이블",
     seats,
-    buyInBb: ([50, 100, 200].includes(buyInBb) ? buyInBb : 100) as 50 | 100 | 200,
+    buyInBb,
     sb,
     bb,
     startStack,
     buyInLimit,
     autoRebuy,
     speed,
-    villainIds: picks,
+    villainIds: selected,
   };
 
   return (
-    <section className="screen">
-      <div className="topbar">
-        <button className="btn glass" onClick={onBack}>뒤로</button>
-        <div className="eyebrow">테이블 세팅</div>
-        <span />
-      </div>
-      <div className="card">
-        <div className="row"><span className="idx">01</span><b>인원</b></div>
-        <div className="grid3" style={{ marginTop: 8 }}>
+    <div className="room-layout">
+      <section className="room-scroll">
+      <header className="page-header">
+        <button className="icon-button" onClick={onBack} aria-label="홈으로 돌아가기">‹</button>
+        <div>
+          <span className="eyebrow">NEW TABLE</span>
+          <h1>테이블 만들기</h1>
+        </div>
+        <span className="header-spacer" />
+      </header>
+      <p className="page-lead">인원과 상대만 고르면 바로 시작합니다. 추천값은 언제든 바꿀 수 있어요.</p>
+
+      <section className="form-section" aria-labelledby="players-title">
+        <div className="form-heading">
+          <div><span className="step">01</span><h2 id="players-title">인원</h2></div>
+          <span className="form-value">나 포함 {seats}명</span>
+        </div>
+        <div className="seg seats-seg">
           {([2, 4, 6] as const).map((n) => (
-            <button key={n} className={`sel ${seats === n ? "on" : ""}`} onClick={() => { setSeats(n); setPicks((cur) => cur.slice(0, n - 1)); }}>
+            <button key={n} aria-pressed={seats === n} className={seats === n ? "on" : ""} onClick={() => changeSeats(n)}>
               {n === 2 ? "헤즈업" : n === 4 ? "4맥스" : "6맥스"}
             </button>
           ))}
         </div>
-      </div>
-      <div className="card">
-        <div className="row"><span className="idx">02</span><b>스몰 / 빅</b></div>
-        <p className="kicker">연습 칩입니다. 숫자로 직접 넣어도 됩니다.</p>
-        <div className="grid2" style={{ marginTop: 8 }}>
-          {moneyField(sb, setSmall, "스몰")}
-          {moneyField(bb, setBb, "빅")}
+      </section>
+
+      <section className="form-section" aria-labelledby="game-title">
+        <div className="form-heading">
+          <div><span className="step">02</span><h2 id="game-title">게임 금액</h2></div>
+          <span className="form-value">연습 칩</span>
         </div>
-        <div className="grid2" style={{ marginTop: 8 }}>
-          {STAKES.map((s) => (
-            <button key={s.label} className={`sel ${sb === s.sb && bb === s.bb ? "on" : ""}`} onClick={() => { setSb(s.sb); setBb(s.bb); }}>
-              {s.label}
-            </button>
+        <label className="field-label">블라인드</label>
+        <div className="choice-grid stakes-grid">
+          {STAKES.map((stake) => {
+            const on = sb === stake.sb && bb === stake.bb;
+            return <button key={stake.label} className={`choice ${on ? "on" : ""}`} aria-pressed={on} onClick={() => { setSb(stake.sb); setBb(stake.bb); }}>{stake.label}</button>;
+          })}
+        </div>
+        <label className="field-label">바이인</label>
+        <div className="choice-grid stack-grid">
+          {STARTS.map((value) => (
+            <button key={value} className={`choice ${startStack === value ? "on" : ""}`} aria-pressed={startStack === value} onClick={() => setStartStack(value)}>${value}</button>
           ))}
         </div>
-      </div>
-      <div className="card">
-        <div className="row"><span className="idx">03</span><b>바이인</b></div>
-        <p className="kicker">시작 스택입니다. 지금은 {Math.round(startStack / Math.max(bb, 0.01))}bb.</p>
-        {moneyField(startStack, setStartStack, "바이인")}
-        <div className="grid2" style={{ marginTop: 8 }}>
-          {STARTS.map((n) => (
-            <button key={n} className={`sel ${startStack === n ? "on" : ""}`} onClick={() => setStartStack(n)}>
-              ${n}
-            </button>
-          ))}
+        <p className="field-help">현재 {Math.round(startStack / Math.max(bb, 0.01))}bb로 시작합니다.</p>
+      </section>
+
+      <section className="form-section" aria-labelledby="opponents-title">
+        <div className="form-heading">
+          <div><span className="step">03</span><h2 id="opponents-title">상대</h2></div>
+          <span className={`form-value ${missing ? "warn" : "good"}`}>{selected.length}/{need}</span>
         </div>
-      </div>
-      <div className="card">
-        <div className="row"><span className="idx">04</span><b>바이인 횟수</b></div>
-        <div className="grid2" style={{ marginTop: 8 }}>
-          {LIMITS.map((x) => (
-            <button key={x.label} className={`sel ${buyInLimit === x.n ? "on" : ""}`} onClick={() => { setBuyInLimit(x.n); setAutoRebuy(x.n !== 1); }}>
-              {x.label}
-            </button>
-          ))}
+        <div className="selected-lineup" aria-label="선택한 상대">
+          {selected.map((id) => <div key={id}><Avatar id={id} /><span>{VILLAIN_BY_ID[id]?.name}</span></div>)}
+          {Array.from({ length: missing }, (_, i) => <div key={`empty-${i}`} className="empty-seat"><span>+</span><small>선택</small></div>)}
         </div>
-      </div>
-      <div className="card">
-        <div className="row"><span className="idx">05</span><b>상대 {picks.length}/{need}</b></div>
-        <div className="grid2" style={{ marginTop: 8 }}>
-          {PRESETS.map((p) => (
-            <button key={p.id} className="sel" onClick={() => fillPreset([...p.villains])}>{p.name}</button>
-          ))}
+        <div className="preset-row" aria-label="상대 추천 조합">
+          {PRESETS.slice(0, 3).map((preset) => <button key={preset.id} onClick={() => fillPreset(preset.villains)}>{preset.name}</button>)}
         </div>
-        <div className="villain-grid" style={{ marginTop: 10 }}>
-          {VILLAINS.map((v) => {
-            const on = picks.includes(v.id);
+        <div className="villain-picker">
+          {VILLAINS.map((villain) => {
+            const on = selected.includes(villain.id);
             return (
-              <button key={v.id} className={`vcell ${on ? "sel on" : ""}`} onClick={() => toggle(v.id)}>
-                <Avatar id={v.id} />
-                <div className="name">{v.name}</div>
+              <button key={villain.id} className={on ? "on" : ""} aria-pressed={on} onClick={() => toggle(villain.id)}>
+                <Avatar id={villain.id} />
+                <span>{villain.name}</span>
+                <small>{villain.tier}</small>
+                <i aria-hidden="true">✓</i>
               </button>
             );
           })}
         </div>
+      </section>
+
+      <details className="advanced-card">
+        <summary><span><b>세부 옵션</b><small>직접 입력 · 바이인 횟수 · 속도</small></span><span aria-hidden="true">+</span></summary>
+        <div className="advanced-body">
+          <div className="grid2">
+            <MoneyField value={sb} onChange={setSmall} label="스몰 블라인드" />
+            <MoneyField value={bb} onChange={setBb} label="빅 블라인드" />
+          </div>
+          <MoneyField value={startStack} onChange={setStartStack} label="시작 바이인" step={1} />
+          <div>
+            <label className="field-label">바이인 횟수</label>
+            <div className="choice-grid stack-grid">
+              {LIMITS.map((item) => <button key={item.label} className={`choice ${buyInLimit === item.n ? "on" : ""}`} aria-pressed={buyInLimit === item.n} onClick={() => { setBuyInLimit(item.n); setAutoRebuy(item.n !== 1); }}>{item.label}</button>)}
+            </div>
+          </div>
+          <button className={`toggle-row ${autoRebuy ? "on" : ""}`} aria-pressed={autoRebuy} onClick={() => setAutoRebuy((value) => !value)}>
+            <span><b>자동 리바이</b><small>스택이 부족하면 설정 횟수 안에서 다시 채웁니다.</small></span><i aria-hidden="true" />
+          </button>
+          <label className="range-field">
+            <span><b>게임 속도</b><small>{speedLabel}</small></span>
+            <input aria-label="게임 속도" type="range" min={0.7} max={2} step={0.1} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} />
+          </label>
+          <label className="text-field">
+            <span>테이블 이름</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="캐시 테이블" />
+          </label>
+        </div>
+      </details>
+      </section>
+
+      <div className="room-submit">
+        {readyReason && <p role="status">{readyReason}</p>}
+        <button className="btn primary wide" disabled={!ready} onClick={() => onCreate(room, selected)}>
+          <span>테이블에 앉기</span>
+          <small>${sb}/${bb} · ${startStack} · {seats}인</small>
+        </button>
       </div>
-      <div className="card">
-        <div className="row"><span className="idx">06</span><b>방 이름 · 속도</b></div>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="캐시 테이블"
-          style={{ width: "100%", marginTop: 8, background: "#12141a", border: "1px solid #333", color: "inherit", padding: 10, borderRadius: 10 }}
-        />
-        <input type="range" min={0.7} max={2} step={0.1} value={speed} onChange={(e) => setSpeed(Number(e.target.value))} />
-      </div>
-      <button className="btn launch wide" disabled={!ready} onClick={() => onCreate(room, picks)}>
-        ${sb}/{bb} · 바이인 ${startStack} · {seats}인
-      </button>
-    </section>
+    </div>
   );
 }

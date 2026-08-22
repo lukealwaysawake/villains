@@ -240,16 +240,17 @@ export function canUsePreset(_profile: Profile, _presetId: string): boolean {
 
 export function createSession(villainIds: string[], presetId?: string, opts?: { tutorial?: boolean; seedClient?: string; room?: RoomConfig }): Session {
   const fair = createFairness(opts?.seedClient);
+  const uniqueVillains = [...new Set(villainIds.filter((id) => id !== "hero"))];
   const room: RoomConfig = defaultRoom({
     name: presetId === "intro" ? "입문 테이블" : "캐시 테이블",
-    seats: (villainIds.length + 1 <= 2 ? 2 : villainIds.length + 1 <= 4 ? 4 : 6),
+    seats: (uniqueVillains.length + 1 <= 2 ? 2 : uniqueVillains.length + 1 <= 4 ? 4 : 6),
     ...(opts?.room ?? {}),
   });
   const buyInChips = Math.round((room.startStack || room.buyInBb) * 100);
-  const ids = ["hero", ...villainIds].slice(0, room.seats);
+  const ids = ["hero", ...uniqueVillains].slice(0, room.seats);
   const players = createFreshPlayers(ids, buyInChips);
   const stacks = Object.fromEntries(players.map((p) => [p.id, p.stack]));
-  const runtimes = Object.fromEntries(villainIds.map((id, i) => [id, createRuntime(id, i + 1)]));
+  const runtimes = Object.fromEntries(uniqueVillains.map((id, i) => [id, createRuntime(id, i + 1)]));
   return {
     id: fair.finalSeed,
     presetId,
@@ -298,7 +299,7 @@ export function dealNext(session: Session): TableState {
 
 export function commitHand(profile: Profile, session: Session, state: TableState, review: ReviewCard): void {
   for (const p of state.players) session.stacks[p.id] = p.stack;
-  const delta = chipsToBb(state.result?.heroDelta ?? 0);
+  const delta = chipsToBb(state.result?.heroDelta ?? 0, state.bb);
   session.bbDelta += delta;
   session.handsPlayed += 1;
   session.heroStats.hands += 1;
@@ -310,7 +311,7 @@ export function commitHand(profile: Profile, session: Session, state: TableState
   const facedOpen = state.actionLog.some((a) => a.actorId !== "hero" && a.street === "preflop" && (a.type === "raise" || a.type === "bet"));
   if (facedOpen) session.heroStats.threeBetOpp += 1;
   if (facedOpen && heroActs.filter((a) => a.street === "preflop" && (a.type === "raise" || a.type === "allin")).length >= 1 && pr) {
-    const hero3 = heroActs.some((a) => a.street === "preflop" && (a.type === "raise" || a.type === "allin") && a.toCall >= 100);
+    const hero3 = heroActs.some((a) => a.street === "preflop" && (a.type === "raise" || a.type === "allin") && a.toCall >= state.bb);
     if (hero3) session.heroStats.threeBet += 1;
   }
   session.heroStats.aggBet += heroActs.filter((a) => a.type === "bet" || a.type === "raise" || a.type === "allin").length;
