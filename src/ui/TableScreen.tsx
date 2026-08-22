@@ -340,17 +340,13 @@ export function TableScreen({
       )}
 
       {openReview && badge && (
-        <div className="sheet" onClick={() => setOpenReview(false)}>
+        <div className="sheet revsheet" onClick={() => setOpenReview(false)}>
           <div className="panel" onClick={(e) => e.stopPropagation()}>
-            <div className="row"><span className="idx">L1</span><span className="eyebrow">{deep ? "심층 리뷰" : "추천 액션"}</span></div>
-            <div className="reco" style={{ marginTop: 10 }}>
-              <h2 style={{ margin: "0 0 6px" }}>{badge.headline}</h2>
-              <p className="kicker">{badge.body}</p>
-              <div className="conf">착취 기준 · 손실 {badge.totalLossBb}bb · {badge.severity === "green" ? "High confidence" : "Needs a look"}</div>
-            </div>
-            <div className="card" style={{ marginTop: 12 }}>
-              <div className="row"><span className="muted">{badge.statLabel}</span><b>{badge.statValue}</b></div>
-              <div className="row" style={{ marginTop: 6 }}><span className="muted">착취 EV 손실</span><b className="bad">-{badge.totalLossBb}bb</b></div>
+            <div className="row"><span className="eyebrow">{deep ? "심층" : "복기"}</span><span className="muted">{badge.statValue}</span></div>
+            <div className="reco tight">
+              <b>{badge.headline}</b>
+              <p>{badge.body}</p>
+              <div className="conf">-{badge.totalLossBb}bb</div>
             </div>
             {deep && (
               <>
@@ -369,7 +365,7 @@ export function TableScreen({
                 <p className="kicker">이 실수는 이번 세션 {session.reviews.filter((r) => r.headline === badge.headline).length}번째입니다.</p>
               </>
             )}
-            <div className="grid2" style={{ marginTop: 12 }}>
+            <div className="grid2" style={{ marginTop: 8 }}>
               <button
                 className="btn"
                 disabled={!canL2 && !deep}

@@ -1289,3 +1289,17 @@ input[type="range"] { width: 100%; accent-color: var(--gold); margin-top: 8px; }
   font-weight: 600;
   outline: none;
 }
+
+.revsheet .panel {
+  max-height: 42%;
+  padding: 10px 12px calc(10px + var(--safe-bot));
+  border-radius: 16px 16px 0 0;
+}
+.revsheet .reco.tight {
+  padding: 8px 10px;
+  border-radius: 12px;
+  margin-top: 8px;
+}
+.revsheet .reco.tight b { font-size: 14px; display: block; margin-bottom: 4px; }
+.revsheet .reco.tight p { margin: 0; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.revsheet .btn { min-height: 40px; font-size: 13px; }
