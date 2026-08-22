@@ -1492,3 +1492,12 @@ input[type="range"] { width: 100%; accent-color: var(--gold); margin-top: 8px; }
 .probe-row .pr-name { color: var(--ink); font-weight: 600; }
 .probe-row .pr-name em { display: block; font-style: normal; font-size: 9px; color: var(--muted); }
 .probe-row i { display: block; font-style: normal; color: var(--gold-2); font-weight: 700; }
+
+/* resume / restart */
+.resume-card { border-color: rgba(240,212,138,0.22); }
+.rc-line { margin-top: 6px; display: grid; gap: 2px; }
+.rc-line b { font-size: 15px; }
+.rc-line span { font-size: 12px; }
+.rc-ava { display: flex; gap: 6px; margin-top: 8px; }
+.rc-ava .avatar { width: 30px; height: 30px; font-size: 12px; }
+.resume-card .btn { min-height: 44px; font-size: 13px; }

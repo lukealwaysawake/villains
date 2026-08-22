@@ -110,6 +110,7 @@ export interface Profile {
   sessionHistory: SessionSummary[];
   handLog: HandLog[];
   habits: HabitRecord[];
+  lastRoom?: { room: RoomConfig; villainIds: string[]; at: number };
 }
 
 export interface SessionSummary {
@@ -518,4 +519,17 @@ export function recordHabit(habits: HabitRecord[], review: ReviewCard): HabitRec
 
 export function topHabits(profile: Profile, minCount = 2): HabitRecord[] {
   return (profile.habits ?? []).filter((h) => h.count >= minCount).slice(0, 8);
+}
+
+export function rememberRoom(profile: Profile, room: RoomConfig, villainIds: string[]): Profile {
+  profile.lastRoom = { room, villainIds: [...villainIds], at: Date.now() };
+  saveProfile(profile);
+  return profile;
+}
+
+/** A session can resume only while its table is mid-hand. */
+export function canResume(session: Session | null | undefined): boolean {
+  if (!session) return false;
+  if (!session.liveTable) return false;
+  return session.liveTable.street !== "complete" || session.handsPlayed > 0;
 }

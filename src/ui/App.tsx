@@ -2,6 +2,9 @@ import { useMemo, useState } from "react";
 import { VILLAINS, VILLAIN_BY_ID } from "../villains/catalog";
 import {
   createSession,
+  defaultRoom,
+  rememberRoom,
+  canResume,
   isUnlocked,
   loadProfile,
   masteryPct,
@@ -45,8 +48,8 @@ export function App() {
       if (!ok) return;
     }
     const archived = archiveSession({ ...profile }, session);
-    setProfile(archived);
     const s = createSession(ids, presetId, { tutorial, room });
+    setProfile(rememberRoom(archived, s.room ?? defaultRoom(), ids));
     setSession(s);
     setScreen("table");
   }
@@ -63,7 +66,17 @@ export function App() {
         />
       )}
       {screen === "home" && (
-        <Home profile={profile} session={session} go={go} resume={() => session && setScreen("table")} />
+        <Home
+          profile={profile}
+          session={session}
+          go={go}
+          resume={() => session && setScreen("table")}
+          again={() => {
+            const lr = profile.lastRoom;
+            if (!lr) return go("create-room");
+            start(lr.villainIds, "custom", false, lr.room);
+          }}
+        />
       )}
       {screen === "table" && session && (
         <TableScreen
@@ -110,6 +123,7 @@ export function App() {
       {screen === "create-room" && (
         <CreateRoom
           profile={profile}
+          initial={profile.lastRoom ? { ...profile.lastRoom.room, villainIds: profile.lastRoom.villainIds } : undefined}
           onBack={() => go("home")}
           onCreate={(room, ids) => start(ids, "custom", false, room)}
         />
@@ -157,12 +171,16 @@ function Home({
   session,
   go,
   resume,
+  again,
 }: {
   profile: Profile;
   session: Session | null;
   go: (s: Screen) => void;
   resume: () => void;
+  again: () => void;
 }) {
+  const lastRoom = profile.lastRoom;
+  const live = canResume(session);
   const focus = useMemo(() => {
     const worst = Object.entries(profile.mastery)
       .filter(([, m]) => m.handsPlayed >= 20)
@@ -186,14 +204,32 @@ function Home({
           </div>
         </div>
       </div>
-      {session && session.handsPlayed > 0 && (
-        <button className="card" style={{ width: "100%", textAlign: "left" }} onClick={resume}>
-          <div className="row"><span className="idx">00</span><span className="eyebrow">이어하기</span></div>
-          <div className="row" style={{ marginTop: 6 }}>
-            <b>핸드 #{session.handNumber}</b>
-            <b className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</b>
+      {(live || lastRoom) && (
+        <div className="card resume-card">
+          <div className="row">
+            <span className="eyebrow">지난 테이블</span>
+            {session && session.handsPlayed > 0 && (
+              <b className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</b>
+            )}
           </div>
-        </button>
+          <div className="rc-line">
+            <b>{lastRoom?.room.name ?? "캐시 테이블"}</b>
+            <span className="muted">
+              ${lastRoom?.room.sb ?? 0.5}/${lastRoom?.room.bb ?? 1} · {lastRoom?.room.seats ?? 4}인 · 바이인 ${lastRoom?.room.startStack ?? 100}
+            </span>
+          </div>
+          {lastRoom && lastRoom.villainIds.length > 0 && (
+            <div className="rc-ava">
+              {lastRoom.villainIds.map((id) => <Avatar key={id} id={id} />)}
+            </div>
+          )}
+          <div className="grid2" style={{ marginTop: 10 }}>
+            <button className="btn glass" disabled={!live} onClick={resume}>
+              {live ? `이어하기 #${session?.handNumber ?? 1}` : "이어할 판 없음"}
+            </button>
+            <button className="btn launch" onClick={again}>새로하기</button>
+          </div>
+        </div>
       )}
       <div className="insight">
         <div className="row"><span className="idx">01</span><span className="eyebrow">오늘</span></div>
