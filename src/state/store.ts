@@ -301,5 +301,3 @@ export function presetById(id: string) {
 export function villainName(id: string) {
   return VILLAIN_BY_ID[id]?.name ?? id;
 }
-VILLAIN_BY_ID[id]?.name ?? id;
-}

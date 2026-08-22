@@ -216,9 +216,3 @@ export function detectPatterns(reviews: ReviewCard[]): { tag: string; count: num
     .sort((a, b) => b.loss - a.loss)
     .slice(0, 3);
 }
-]
-    .map(([tag, v]) => ({ tag, ...v }))
-    .filter((x) => x.count >= 2)
-    .sort((a, b) => b.loss - a.loss)
-    .slice(0, 3);
-}
