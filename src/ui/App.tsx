@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { VILLAINS, VILLAIN_BY_ID } from "../villains/catalog";
 import {
   createSession,
@@ -20,7 +20,7 @@ import {
 } from "../state/store";
 import { verifyCommit } from "../engine/fairness";
 import { roundRobin, behaviorProbe, type BehaviorRow } from "../engine/sim";
-import { Avatar, Nav, PlayingCard, ChipStack, signedBb } from "./bits";
+import { Avatar, Nav, PageHeader, PlayingCard, ChipStack, Segmented, signedBb } from "./bits";
 import { TableScreen } from "./TableScreen";
 import { Analyze } from "./Analyze";
 import { SessionRecap } from "./SessionRecap";
@@ -301,6 +301,8 @@ function Home({
 }
 
 function Dex({ profile, open }: { profile: Profile; open: (id: string) => void }) {
+  const [tierFilter, setTierFilter] = useState<"ALL" | "S" | "A" | "B" | "C">("ALL");
+  const tiers = tierFilter === "ALL" ? (["S", "A", "B", "C"] as const) : [tierFilter];
   return (
     <section className="screen dex-screen">
       <div className="page-title">
@@ -308,9 +310,23 @@ function Dex({ profile, open }: { profile: Profile; open: (id: string) => void }
         <h1>상대 도감</h1>
         <p>플레이 성향과 발견한 약점을 확인하세요.</p>
       </div>
-      {(["S", "A", "B", "C"] as const).map((tier) => (
-        <div key={tier}>
-          <div className="eyebrow" style={{ margin: "12px 0 8px" }}>TIER {tier}</div>
+      <Segmented
+        label="상대 티어 필터"
+        value={tierFilter}
+        options={[
+          { value: "ALL", label: "전체" },
+          { value: "S", label: "S" },
+          { value: "A", label: "A" },
+          { value: "B", label: "B" },
+          { value: "C", label: "C" },
+        ]}
+        onChange={setTierFilter}
+        columns={5}
+        className="tier-filter"
+      />
+      {tiers.map((tier) => (
+        <div key={tier} className="tier-section">
+          {tierFilter === "ALL" && <div className="eyebrow tier-heading">TIER {tier}</div>}
           {VILLAINS.filter((v) => v.tier === tier).map((v) => {
             const m = profile.mastery[v.id];
             return (
@@ -351,12 +367,8 @@ function Detail({
   const m = profile.mastery[id];
   const canHint = canShowHint(profile, id);
   return (
-    <section className="screen detail-screen">
-      <header className="page-header">
-        <button className="icon-button" onClick={back} aria-label="이전 화면으로 돌아가기">‹</button>
-        <span className="eyebrow">OPPONENT</span>
-        <span className="header-spacer" />
-      </header>
+    <section className="screen detail-screen no-nav">
+      <PageHeader eyebrow="OPPONENT" title="상대 분석" onBack={back} titleAs="span" />
       <div className="detail-hero">
         <Avatar id={id} size="lg" />
         <div>
@@ -412,23 +424,22 @@ function Reviews({ profile, setProfile, go }: { profile: Profile; setProfile: (p
   const cur = list[i];
   if (!cur) {
     return (
-      <section className="screen">
-        <div className="topbar"><button className="btn glass" onClick={() => go("analyze")}>분석</button><div className="eyebrow">리뷰</div><span /></div>
-        <h1>리뷰 큐</h1>
+      <section className="screen no-nav">
+        <PageHeader eyebrow="REVIEWS" title="리뷰 큐" onBack={() => go("analyze")} backLabel="기록으로 돌아가기" />
         <p className="kicker">밀린 리뷰가 없습니다. 핸드 치면 여기로 옵니다.</p>
       </section>
     );
   }
   return (
-    <section className="screen">
-      <div className="topbar"><button className="btn glass" onClick={() => go("analyze")}>분석</button><div className="eyebrow">리뷰 큐 {i + 1}/{list.length}</div><span /></div>
-      <h1 style={{ margin: "8px 0" }}>{cur.headline}</h1>
+    <section className="screen no-nav">
+      <PageHeader eyebrow={`REVIEW ${i + 1}/${list.length}`} title="결정 복기" onBack={() => go("analyze")} backLabel="기록으로 돌아가기" titleAs="span" />
+      <h1 className="review-page-title">{cur.headline}</h1>
       <p className="kicker">{cur.body}</p>
       <div className="card">
         <div className="row"><span>{cur.statLabel}</span><b>{cur.statValue}</b></div>
         <div className="row"><span>손실</span><b className="bad">−{cur.totalLossBb}bb</b></div>
       </div>
-      <div className="grid2" style={{ marginTop: 16 }}>
+      <div className="button-pair review-page-actions">
         <button
           className="btn"
           onClick={() => {
@@ -449,6 +460,7 @@ function Reviews({ profile, setProfile, go }: { profile: Profile; setProfile: (p
 function SettingsScreen({ profile, setProfile, go }: { profile: Profile; setProfile: (p: Profile) => void; go: (s: Screen) => void }) {
   const s = profile.settings;
   const [transferMessage, setTransferMessage] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
   function patch(partial: Partial<Profile["settings"]>) {
     setProfile({ ...profile, settings: { ...s, ...partial } });
   }
@@ -461,55 +473,71 @@ function SettingsScreen({ profile, setProfile, go }: { profile: Profile; setProf
       </div>
       <div className="card setting-card">
         <div className="setting-heading"><b>테이블 정보</b><p>상대 통계를 얼마나 자세히 볼지 선택하세요.</p></div>
-        <div className="grid2" style={{ marginTop: 8 }}>
-          {(["learn", "standard", "split", "off"] as const).map((m) => (
-            <button key={m} className={`sel ${s.hudMode === m ? "on" : ""}`} onClick={() => patch({ hudMode: m })}>
-              {m === "learn" ? "항상" : m === "standard" ? "기본" : m === "split" ? "선택한 상대" : "끄기"}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          label="테이블 정보 표시"
+          value={s.hudMode}
+          options={[
+            { value: "learn", label: "항상" },
+            { value: "standard", label: "기본" },
+            { value: "split", label: "선택한 상대" },
+            { value: "off", label: "끄기" },
+          ]}
+          onChange={(hudMode) => patch({ hudMode })}
+          columns={2}
+        />
       </div>
       <div className="card setting-card">
         <div className="setting-heading"><b>자동 복기</b><p>어떤 결과에서 핸드를 멈추고 복기를 열지 선택하세요.</p></div>
-        <div className="grid2" style={{ marginTop: 8 }}>
-          {(["off", "red", "yellow", "all"] as const).map((m) => (
-            <button key={m} className={`sel ${s.reviewPause === m ? "on" : ""}`} onClick={() => patch({ reviewPause: m })}>
-              {m === "off" ? "끄기" : m === "red" ? "큰 실수" : m === "yellow" ? "모든 실수" : "모든 핸드"}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          label="자동 복기 범위"
+          value={s.reviewPause}
+          options={[
+            { value: "off", label: "끄기" },
+            { value: "red", label: "큰 실수" },
+            { value: "yellow", label: "모든 실수" },
+            { value: "all", label: "모든 핸드" },
+          ]}
+          onChange={(reviewPause) => patch({ reviewPause })}
+          columns={2}
+        />
       </div>
       <div className="card setting-card">
         <div className="setting-heading"><b>타이밍 텔 난이도</b><p>상대의 행동 속도에서 얻는 단서를 조절합니다.</p></div>
-        <div className="grid3" style={{ marginTop: 8 }}>
-          {[
-            [0.9, "쉬움"],
-            [0.78, "보통"],
-            [0.64, "어려움"],
-          ].map(([n, label]) => (
-            <button key={label} className={`sel ${s.tellDifficulty === n ? "on" : ""}`} onClick={() => patch({ tellDifficulty: n as number })}>
-              {label}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          label="타이밍 텔 난이도"
+          value={s.tellDifficulty}
+          options={[
+            { value: 0.9, label: "쉬움" },
+            { value: 0.78, label: "보통" },
+            { value: 0.64, label: "어려움" },
+          ]}
+          onChange={(tellDifficulty) => patch({ tellDifficulty })}
+          columns={3}
+        />
       </div>
       <div className="card setting-card">
         <div className="setting-heading row"><div><b>진행 속도</b><p>카드와 상대 액션의 재생 속도입니다.</p></div><span className="form-value">{s.animSpeed < 0.9 ? "느리게" : s.animSpeed > 1.3 ? "빠르게" : "보통"}</span></div>
         <input aria-label="진행 속도" type="range" min={0.7} max={2} step={0.1} value={s.animSpeed} onChange={(e) => patch({ animSpeed: Number(e.target.value) })} />
       </div>
       <div className="settings-section-label">데이터</div>
-      <button className="btn glass wide" onClick={() => go("fairness")}>게임 엔진과 공정성 확인</button>
-      <button className="btn glass wide" style={{ marginTop: 8 }} onClick={() => {
-        const blob = new Blob([exportProfile(profile)], { type: "application/json" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = "villains-profile.json";
-        a.click();
-        setTransferMessage("기록 파일을 저장했습니다.");
-      }}>기록 내보내기</button>
-      <label className="btn glass wide import-button" role="button" tabIndex={0}>
-        기록 가져오기
-        <input type="file" accept="application/json" hidden onChange={(e) => {
+      <div className="settings-actions">
+        <button type="button" className="settings-action" onClick={() => go("fairness")}>
+          <span><b>게임 엔진과 공정성</b><small>시드 검증과 성향 측정을 확인합니다.</small></span><i aria-hidden="true">›</i>
+        </button>
+        <button type="button" className="settings-action" onClick={() => {
+          const blob = new Blob([exportProfile(profile)], { type: "application/json" });
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = "villains-profile.json";
+          a.click();
+          setTransferMessage("기록 파일을 저장했습니다.");
+        }}>
+          <span><b>기록 내보내기</b><small>현재 기록을 JSON 파일로 저장합니다.</small></span><i aria-hidden="true">↓</i>
+        </button>
+        <button type="button" className="settings-action" onClick={() => fileInputRef.current?.click()}>
+          <span><b>기록 가져오기</b><small>VILLAINS 기록 파일로 복원합니다.</small></span><i aria-hidden="true">↑</i>
+        </button>
+        <input ref={fileInputRef} type="file" accept="application/json" hidden onChange={(e) => {
           const file = e.target.files?.[0];
           if (!file) return;
           file.text().then((raw) => {
@@ -518,10 +546,12 @@ function SettingsScreen({ profile, setProfile, go }: { profile: Profile; setProf
               setTransferMessage("기록을 가져왔습니다.");
             } catch {
               setTransferMessage("파일을 읽지 못했습니다. VILLAINS 기록 파일인지 확인하세요.");
+            } finally {
+              e.target.value = "";
             }
           });
         }} />
-      </label>
+      </div>
       {transferMessage && <p className="transfer-status" role="status">{transferMessage}</p>}
     </section>
   );
@@ -534,8 +564,8 @@ function Fairness({ session, go }: { session: Session | null; go: (s: Screen) =>
   const [rows, setRows] = useState<{ id: string; name: string; bb100: number; hands: number }[] | null>(null);
   const [probe, setProbe] = useState<BehaviorRow[] | null>(null);
   return (
-    <section className="screen">
-      <h1>공정성</h1>
+    <section className="screen fairness-screen no-nav">
+      <PageHeader eyebrow="SYSTEM" title="공정성" onBack={() => go("settings")} backLabel="설정으로 돌아가기" />
       <p className="kicker">세션 시작 때 서버 시드 해시를 먼저 공개합니다. 종료 후 원문을 넣으면 같은 해시가 나와야 합니다. 빌런 정책은 상대 홀카드를 인자로 받지 않습니다.</p>
       <div className="card">
         <div className="muted">commit hash</div>
@@ -559,7 +589,7 @@ function Fairness({ session, go }: { session: Session | null; go: (s: Screen) =>
       </div>
       <div className="card">
         <b>빌런 성향 검증</b>
-        <p className="kicker">설계값(스펙) 대비 실제 플레이를 측정합니다. 300핸드 자기대전. 몇 초 걸립니다..</p>
+        <p className="kicker">설계값(스펙) 대비 실제 플레이를 측정합니다. 300핸드 자기대전으로 몇 초 걸립니다.</p>
         <button className="btn wide" onClick={() => setProbe(behaviorProbe(300))}>성향 측정</button>
         {probe && (
           <div className="probe-rows">
@@ -578,7 +608,6 @@ function Fairness({ session, go }: { session: Session | null; go: (s: Screen) =>
           </div>
         )}
       </div>
-      <button className="btn wide" onClick={() => go("settings")}>설정으로</button>
     </section>
   );
 }

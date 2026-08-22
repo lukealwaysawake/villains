@@ -310,8 +310,8 @@ export function TableScreen({
               <span>폴드</span><small>{legal.canFold ? "포기" : "불가"}</small>
             </button>
             <button className="action-button call" disabled={!legal.canCall && !legal.canCheck} onClick={() => act(legal.canCall ? "call" : "check")}>
-              <span>{legal.canCall ? "콜" : "체크"}</span>
-              <small>{legal.canCall ? `${bb(legal.callAmount)} · 팟오즈 ${Math.round((legal.callAmount / (legal.pot + legal.callAmount)) * 100)}%` : "넘기기"}</small>
+              <span>{legal.canCall ? `콜 ${bb(legal.callAmount)}` : "체크"}</span>
+              <small>{legal.canCall ? `팟오즈 ${Math.round((legal.callAmount / (legal.pot + legal.callAmount)) * 100)}%` : "넘기기"}</small>
             </button>
             <button
               className={`action-button raise ${raiseOn ? "on" : ""}`}
@@ -322,7 +322,7 @@ export function TableScreen({
                 setRaiseTo(legal.minBet);
               }}
             >
-              <span>{legal.callAmount > 0 ? "레이즈" : "벳"}</span><small>{bb(legal.minBet)}+</small>
+              <span>{legal.callAmount > 0 ? `레이즈 ${bb(legal.minBet)}+` : `벳 ${bb(legal.minBet)}+`}</span><small>금액 선택</small>
             </button>
             <button className="action-button allin" disabled={!legal.canBet} onClick={() => act("allin", legal.maxRaiseTo)}>
               <span>올인</span><small>전부</small>
@@ -355,6 +355,7 @@ export function TableScreen({
         <div className="sheet revsheet" role="dialog" aria-modal="true" aria-label="핸드 복기" onClick={() => setOpenReview(false)}>
           <div className="panel" onClick={(e) => e.stopPropagation()}>
             <div className="sheet-handle" aria-hidden="true" />
+            <div className="review-scroll">
             <div className="row"><span className="eyebrow">{deep ? "상세 복기" : "핸드 복기"}</span><span className="muted">{badge.statValue}</span></div>
             <div className={`reco tight ${badge.severity}`}>
               <div className="review-kicker"><i className={`dot ${badge.severity}`} aria-hidden="true" />{badge.severity === "green" ? "좋은 결정" : badge.severity === "yellow" ? "확인할 결정" : "큰 손실 결정"}</div>
@@ -387,6 +388,7 @@ export function TableScreen({
                 {badge.totalLossBb > 0 && <p className="repeat-note">이번 세션에서 같은 유형이 {session.reviews.filter((review) => review.headline === badge.headline).length}번 나왔습니다.</p>}
               </div>
             )}
+            </div>
             <div className="review-actions">
               <button className="btn glass" disabled={!hasDeepReview} onClick={() => setDeep((value) => !value)}>{deep ? "간단히 보기" : "자세히 보기"}</button>
               <button className="btn primary" onClick={() => { setOpenReview(false); if (table.street === "complete") nextHand(); }}>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { VILLAIN_BY_ID } from "../villains/catalog";
-import { signedBb, type Screen } from "./bits";
+import { Segmented, signedBb, type Screen } from "./bits";
 import type { Profile } from "../state/store";
 
 type Tab = "pattern" | "kibo" | "session";
@@ -34,14 +34,21 @@ export function Analyze({
         <div className="card"><div className="muted">세션</div><b>{sessions.length}</b></div>
         <div className="card"><div className="muted">손익</div><b className={life >= 0 ? "good" : "bad"}>{signedBb(life)}</b></div>
       </div>
-      <div className="seg">
-        <button className={tab === "pattern" ? "on" : ""} onClick={() => setTab("pattern")}>패턴</button>
-        <button className={tab === "kibo" ? "on" : ""} onClick={() => setTab("kibo")}>기보</button>
-        <button className={tab === "session" ? "on" : ""} onClick={() => setTab("session")}>세션</button>
-      </div>
+      <Segmented
+        label="기록 보기"
+        value={tab}
+        options={[
+          { value: "pattern", label: "패턴" },
+          { value: "kibo", label: "기보" },
+          { value: "session", label: "세션" },
+        ]}
+        onChange={setTab}
+        columns={3}
+        className="records-tabs"
+      />
       {tab === "pattern" && (
         <>
-          <div className="insight" style={{ marginTop: 12 }}>
+          <div className="insight">
             <div className="row"><span className="idx">00</span><b>내 패턴</b></div>
             <p className="kicker">노란/빨간 회고가 여기 모입니다.</p>
             {hs && (
@@ -72,7 +79,7 @@ export function Analyze({
         </>
       )}
       {tab === "kibo" && (
-        <div className="card" style={{ marginTop: 12 }}>
+        <div className="card">
           <div className="row"><span className="idx">01</span><b>기보</b></div>
           <p className="kicker">끝난 핸드가 시간순으로 남습니다.</p>
           {hands.length === 0 && <p className="kicker">아직 없어요. 핸드 하나 끝내면 뜹니다.</p>}
@@ -92,7 +99,7 @@ export function Analyze({
         </div>
       )}
       {tab === "session" && (
-        <div className="card" style={{ marginTop: 12 }}>
+        <div className="card">
           <div className="row"><span className="idx">02</span><b>세션</b></div>
           {sessions.length === 0 && <p className="kicker">테이블을 종료하면 세션이 쌓입니다.</p>}
           {sessions.map((s) => (

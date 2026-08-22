@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { PRESETS, VILLAINS, VILLAIN_BY_ID } from "../villains/catalog";
 import { defaultRoom, type RoomConfig } from "../state/store";
-import { Avatar } from "./bits";
+import { Avatar, PageHeader, Segmented, SegmentedActions } from "./bits";
 
 const STAKES = [
   { sb: 0.5, bb: 1, label: "$0.5 / $1" },
@@ -103,14 +103,7 @@ export function CreateRoom({
   return (
     <div className="room-layout">
       <section className="room-scroll">
-      <header className="page-header">
-        <button className="icon-button" onClick={onBack} aria-label="홈으로 돌아가기">‹</button>
-        <div>
-          <span className="eyebrow">NEW TABLE</span>
-          <h1>테이블 만들기</h1>
-        </div>
-        <span className="header-spacer" />
-      </header>
+      <PageHeader eyebrow="NEW TABLE" title="테이블 만들기" onBack={onBack} backLabel="홈으로 돌아가기" />
       <p className="page-lead">인원과 상대만 고르면 바로 시작합니다. 추천값은 언제든 바꿀 수 있어요.</p>
 
       <section className="form-section" aria-labelledby="players-title">
@@ -118,13 +111,16 @@ export function CreateRoom({
           <div><span className="step">01</span><h2 id="players-title">인원</h2></div>
           <span className="form-value">나 포함 {seats}명</span>
         </div>
-        <div className="seg seats-seg">
-          {([2, 4, 6] as const).map((n) => (
-            <button key={n} aria-pressed={seats === n} className={seats === n ? "on" : ""} onClick={() => changeSeats(n)}>
-              {n === 2 ? "헤즈업" : n === 4 ? "4맥스" : "6맥스"}
-            </button>
-          ))}
-        </div>
+        <Segmented
+          label="테이블 인원"
+          value={seats}
+          options={[
+            { value: 2, label: "헤즈업" },
+            { value: 4, label: "4맥스" },
+            { value: 6, label: "6맥스" },
+          ]}
+          onChange={changeSeats}
+        />
       </section>
 
       <section className="form-section" aria-labelledby="game-title">
@@ -133,18 +129,24 @@ export function CreateRoom({
           <span className="form-value">연습 칩</span>
         </div>
         <label className="field-label">블라인드</label>
-        <div className="choice-grid stakes-grid">
-          {STAKES.map((stake) => {
-            const on = sb === stake.sb && bb === stake.bb;
-            return <button key={stake.label} className={`choice ${on ? "on" : ""}`} aria-pressed={on} onClick={() => { setSb(stake.sb); setBb(stake.bb); }}>{stake.label}</button>;
-          })}
-        </div>
+        <Segmented
+          label="블라인드"
+          value={`${sb}/${bb}`}
+          options={STAKES.map((stake) => ({ value: `${stake.sb}/${stake.bb}`, label: stake.label }))}
+          onChange={(next) => {
+            const stake = STAKES.find((item) => `${item.sb}/${item.bb}` === next);
+            if (stake) { setSb(stake.sb); setBb(stake.bb); }
+          }}
+          columns={4}
+        />
         <label className="field-label">바이인</label>
-        <div className="choice-grid stack-grid">
-          {STARTS.map((value) => (
-            <button key={value} className={`choice ${startStack === value ? "on" : ""}`} aria-pressed={startStack === value} onClick={() => setStartStack(value)}>${value}</button>
-          ))}
-        </div>
+        <Segmented
+          label="시작 바이인"
+          value={startStack}
+          options={STARTS.map((amount) => ({ value: amount, label: `$${amount}` }))}
+          onChange={setStartStack}
+          columns={4}
+        />
         <p className="field-help">현재 {Math.round(startStack / Math.max(bb, 0.01))}bb로 시작합니다.</p>
       </section>
 
@@ -157,9 +159,17 @@ export function CreateRoom({
           {selected.map((id) => <div key={id}><Avatar id={id} /><span>{VILLAIN_BY_ID[id]?.name}</span></div>)}
           {Array.from({ length: missing }, (_, i) => <div key={`empty-${i}`} className="empty-seat"><span>+</span><small>선택</small></div>)}
         </div>
-        <div className="preset-row" aria-label="상대 추천 조합">
-          {PRESETS.slice(0, 3).map((preset) => <button key={preset.id} onClick={() => fillPreset(preset.villains)}>{preset.name}</button>)}
-        </div>
+        <SegmentedActions
+          label="상대 추천 조합"
+          activeValue={PRESETS.slice(0, 3).find((preset) => preset.villains.length === selected.length && preset.villains.every((id, index) => selected[index] === id))?.id}
+          options={PRESETS.slice(0, 3).map((preset) => ({ value: preset.id, label: preset.name }))}
+          onAction={(id) => {
+            const preset = PRESETS.find((item) => item.id === id);
+            if (preset) fillPreset(preset.villains);
+          }}
+          columns={3}
+          className="preset-control"
+        />
         <div className="villain-picker">
           {VILLAINS.map((villain) => {
             const on = selected.includes(villain.id);
@@ -185,9 +195,13 @@ export function CreateRoom({
           <MoneyField value={startStack} onChange={setStartStack} label="시작 바이인" step={1} />
           <div>
             <label className="field-label">바이인 횟수</label>
-            <div className="choice-grid stack-grid">
-              {LIMITS.map((item) => <button key={item.label} className={`choice ${buyInLimit === item.n ? "on" : ""}`} aria-pressed={buyInLimit === item.n} onClick={() => { setBuyInLimit(item.n); setAutoRebuy(item.n !== 1); }}>{item.label}</button>)}
-            </div>
+            <Segmented
+              label="바이인 횟수"
+              value={buyInLimit}
+              options={LIMITS.map((item) => ({ value: item.n, label: item.label }))}
+              onChange={(next) => { setBuyInLimit(next); setAutoRebuy(next !== 1); }}
+              columns={4}
+            />
           </div>
           <button className={`toggle-row ${autoRebuy ? "on" : ""}`} aria-pressed={autoRebuy} onClick={() => setAutoRebuy((value) => !value)}>
             <span><b>자동 리바이</b><small>스택이 부족하면 설정 횟수 안에서 다시 채웁니다.</small></span><i aria-hidden="true" />

@@ -24,7 +24,7 @@ export function SessionRecap({
   const showExtraKibos = kibos.length > 0 && kibos.length !== reviews.length;
 
   return (
-    <section className="screen recap">
+    <section className="screen recap no-nav">
       <div className="eyebrow">SESSION RECAP</div>
       <h1 className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</h1>
       <p className="kicker">
@@ -104,8 +104,10 @@ export function SessionRecap({
         ))}
       </div>
 
-      <button className="btn launch wide" onClick={() => go("home")}>홈</button>
-      <button className="btn glass wide" style={{ marginTop: 8 }} onClick={() => go("analyze")}>전체 분석</button>
+      <div className="button-pair recap-actions">
+        <button className="btn glass" onClick={() => go("analyze")}>전체 분석</button>
+        <button className="btn primary" onClick={() => go("home")}>홈으로</button>
+      </div>
     </section>
   );
 }

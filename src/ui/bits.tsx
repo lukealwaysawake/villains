@@ -1,3 +1,4 @@
+import type { CSSProperties, KeyboardEvent } from "react";
 import { VILLAIN_BY_ID } from "../villains/catalog";
 import type { Screen } from "../state/store";
 export type { Screen };
@@ -35,6 +36,136 @@ export function signedBb(value: number): string {
   const rounded = Math.round(value * 10) / 10;
   const body = Math.abs(rounded) % 1 === 0 ? Math.abs(rounded).toFixed(0) : Math.abs(rounded).toFixed(1);
   return `${rounded > 0 ? "+" : rounded < 0 ? "−" : ""}${body}bb`;
+}
+
+export interface SegmentOption<T extends string | number> {
+  value: T;
+  label: string;
+  detail?: string;
+  disabled?: boolean;
+}
+
+export function Segmented<T extends string | number>({
+  label,
+  value,
+  options,
+  onChange,
+  columns = options.length,
+  className = "",
+}: {
+  label: string;
+  value: T;
+  options: SegmentOption<T>[];
+  onChange: (value: T) => void;
+  columns?: number;
+  className?: string;
+}) {
+  const activeIndex = options.findIndex((option) => option.value === value);
+  function move(event: KeyboardEvent<HTMLButtonElement>) {
+    const horizontal = event.key === "ArrowRight" || event.key === "ArrowLeft";
+    const vertical = event.key === "ArrowDown" || event.key === "ArrowUp";
+    if (!horizontal && !vertical && event.key !== "Home" && event.key !== "End") return;
+    event.preventDefault();
+    const buttons = Array.from(event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]:not(:disabled)') ?? []);
+    if (!buttons.length) return;
+    const current = buttons.indexOf(event.currentTarget);
+    const next = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? buttons.length - 1
+        : (current + (event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
+    buttons[next]?.focus();
+    buttons[next]?.click();
+  }
+  return (
+    <div
+      className={`control-group ${className}`.trim()}
+      role="radiogroup"
+      aria-label={label}
+      style={{ "--segments": columns } as CSSProperties}
+    >
+      {options.map((option, index) => {
+        const active = option.value === value;
+        return (
+          <button
+            type="button"
+            key={String(option.value)}
+            role="radio"
+            aria-checked={active}
+            className={active ? "on" : ""}
+            disabled={option.disabled}
+            tabIndex={active || (activeIndex < 0 && index === 0) ? 0 : -1}
+            onKeyDown={move}
+            onClick={() => onChange(option.value)}
+          >
+            <span>{option.label}</span>
+            {option.detail && <small>{option.detail}</small>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function SegmentedActions<T extends string | number>({
+  label,
+  activeValue,
+  options,
+  onAction,
+  columns = options.length,
+  className = "",
+}: {
+  label: string;
+  activeValue?: T;
+  options: SegmentOption<T>[];
+  onAction: (value: T) => void;
+  columns?: number;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`control-group ${className}`.trim()}
+      role="group"
+      aria-label={label}
+      style={{ "--segments": columns } as CSSProperties}
+    >
+      {options.map((option) => (
+        <button
+          type="button"
+          key={String(option.value)}
+          aria-pressed={option.value === activeValue}
+          disabled={option.disabled}
+          onClick={() => onAction(option.value)}
+        >
+          <span>{option.label}</span>
+          {option.detail && <small>{option.detail}</small>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function PageHeader({
+  eyebrow,
+  title,
+  onBack,
+  backLabel = "이전 화면으로 돌아가기",
+  titleAs = "h1",
+}: {
+  eyebrow: string;
+  title: string;
+  onBack?: () => void;
+  backLabel?: string;
+  titleAs?: "h1" | "span";
+}) {
+  const Title = titleAs;
+  return (
+    <header className="page-header">
+      {onBack ? <button className="icon-button" type="button" onClick={onBack} aria-label={backLabel}>‹</button> : <span className="header-spacer" />}
+      <div><span className="eyebrow">{eyebrow}</span><Title className="page-header-title">{title}</Title></div>
+      <span className="header-spacer" />
+    </header>
+  );
 }
 
 function NavIcon({ id }: { id: "home" | "dex" | "analyze" | "settings" }) {
