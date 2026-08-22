@@ -186,15 +186,6 @@ export function TableScreen({
   const coach = table && session.coachOn && heroTurn ? coachLine(table) : null;
   const canL2 = isPro(profile) || session.l2Used < 3;
 
-  const hudText = (id: string, full: boolean) => {
-    const def = VILLAIN_BY_ID[id];
-    if (!def) return "";
-    if (profile.settings.hudMode === "off") return "";
-    if (profile.settings.hudMode === "split" || full || profile.settings.hudMode === "learn") {
-      return `VPIP${def.baseStats.vpip} PFR${def.baseStats.pfr} 3b${def.baseStats.threeBet} F3${def.baseStats.foldToThreeBet} AF${def.baseStats.aggressionFactor}`;
-    }
-    return `VPIP${def.baseStats.vpip} PFR${def.baseStats.pfr} AF${def.baseStats.aggressionFactor}`;
-  };
 
   if (blocked) {
     return (
@@ -217,7 +208,8 @@ export function TableScreen({
           <span className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</span>
         </div>
         <div className="right">
-          <span className="chip">핸드 #{table.handNumber}</span>
+          <span className="chip">{table.street === "preflop" ? "프리플랍" : table.street === "flop" ? "플랍" : table.street === "turn" ? "턴" : table.street === "river" ? "리버" : "종료"}</span>
+          <span className="chip">#{table.handNumber}</span>
           <span className="chip">리뷰 {profile.reviewQueue.length}</span>
         </div>
       </div>
@@ -231,14 +223,21 @@ export function TableScreen({
           </div>
           <div className="pot">팟 {bb(pot)}</div>
           {table.street === "complete" && table.result && (
-            <div className="board-cards" style={{ marginTop: 6 }}>
-              {Object.entries(table.result.shown).slice(0, 3).map(([seat, hole]) => (
-                <span key={seat} style={{ display: "flex", gap: 2 }}>
-                  <PlayingCard card={hole[0]} />
-                  <PlayingCard card={hole[1]} />
-                </span>
-              ))}
-            </div>
+            <>
+              <div className="insight" style={{ marginTop: 8, padding: "8px 10px", minWidth: 160 }}>
+                <div className={table.result.heroDelta >= 0 ? "good" : "bad"}>
+                  {table.result.heroDelta >= 0 ? "이 핸드 +" : "이 핸드 -"}{bb(Math.abs(table.result.heroDelta))}
+                </div>
+              </div>
+              <div className="board-cards" style={{ marginTop: 6 }}>
+                {Object.entries(table.result.shown).slice(0, 3).map(([seat, hole]) => (
+                  <span key={seat} style={{ display: "flex", gap: 2 }}>
+                    <PlayingCard card={hole[0]} />
+                    <PlayingCard card={hole[1]} />
+                  </span>
+                ))}
+              </div>
+            </>
           )}
         </div>
 
@@ -339,9 +338,12 @@ export function TableScreen({
       {openReview && badge && (
         <div className="sheet" onClick={() => setOpenReview(false)}>
           <div className="panel" onClick={(e) => e.stopPropagation()}>
-            <div className="eyebrow">{deep ? "L2 심층 리뷰" : "L1 리뷰"}</div>
-            <h2 style={{ margin: "8px 0" }}>{badge.headline}</h2>
-            <p className="kicker">{badge.body}</p>
+            <div className="row"><span className="idx">L1</span><span className="eyebrow">{deep ? "심층 리뷰" : "추천 액션"}</span></div>
+            <div className="reco" style={{ marginTop: 10 }}>
+              <h2 style={{ margin: "0 0 6px" }}>{badge.headline}</h2>
+              <p className="kicker">{badge.body}</p>
+              <div className="conf">착취 기준 · 손실 {badge.totalLossBb}bb · {badge.severity === "green" ? "High confidence" : "Needs a look"}</div>
+            </div>
             <div className="card" style={{ marginTop: 12 }}>
               <div className="row"><span className="muted">{badge.statLabel}</span><b>{badge.statValue}</b></div>
               <div className="row" style={{ marginTop: 6 }}><span className="muted">착취 EV 손실</span><b className="bad">-{badge.totalLossBb}bb</b></div>
@@ -379,7 +381,7 @@ export function TableScreen({
               >
                 {deep ? "간단히" : canL2 ? "자세히" : "L2 한도"}
               </button>
-              <button className="btn primary" onClick={() => { setOpenReview(false); if (table.street === "complete") nextHand(); }}>
+              <button className="btn launch" onClick={() => { setOpenReview(false); if (table.street === "complete") nextHand(); }}>
                 닫고 계속
               </button>
             </div>

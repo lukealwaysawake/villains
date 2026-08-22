@@ -166,16 +166,17 @@ function Home({
       </div>
       {session && session.handsPlayed > 0 && (
         <button className="card" style={{ width: "100%", textAlign: "left" }} onClick={resume}>
-          <div className="eyebrow">이어하기</div>
+          <div className="row"><span className="idx">00</span><span className="eyebrow">이어하기</span></div>
           <div className="row" style={{ marginTop: 6 }}>
             <b>핸드 #{session.handNumber}</b>
             <b className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</b>
           </div>
         </button>
       )}
-      <div className="card">
-        <div className="eyebrow">오늘의 집중</div>
+      <div className="insight">
+        <div className="row"><span className="idx">01</span><span className="eyebrow">오늘의 집중</span></div>
         <p className="kicker" style={{ marginTop: 8 }}>{focus}</p>
+        <div className="meter"><i style={{ width: "46%" }} /></div>
       </div>
       <button className="btn launch wide" style={{ margin: "12px 0" }} onClick={() => go("lobby")}>테이블 앉기</button>
       <div className="row" style={{ margin: "8px 0 10px" }}>

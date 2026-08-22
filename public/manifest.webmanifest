@@ -1,0 +1,9 @@
+{
+  "name": "VILLAINS",
+  "short_name": "VILLAINS",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07080b",
+  "theme_color": "#07080b",
+  "orientation": "portrait"
+}
