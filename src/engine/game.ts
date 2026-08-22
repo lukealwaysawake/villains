@@ -501,18 +501,3 @@ export function describeAction(action: Action): string {
       return `올인 ${bb(action.amount)}`;
   }
 }
-     return `올인 ${bb(action.amount)}`;
-  }
-}
-urn `콜 ${bb(action.amount)}`;
-    case "bet":
-      return `벳 ${bb(action.amount)}`;
-    case "raise":
-      return `레이즈 ${bb(action.amount)}`;
-    case "allin":
-      return `올인 ${bb(action.amount)}`;
-  }
-}
-     return `올인 ${bb(action.amount)}`;
-  }
-}
