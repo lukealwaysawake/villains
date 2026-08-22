@@ -1,4 +1,5 @@
 import { sessionPatterns, type Profile, type Session } from "../state/store";
+import { displayReviewCopy } from "../review/analyze";
 import { VILLAIN_BY_ID } from "../villains/catalog";
 import { Avatar, signedBb, type Screen } from "./bits";
 
@@ -57,29 +58,51 @@ export function SessionRecap({
       <div className="card">
         <div className="row"><span className="idx">02</span><b>핸드 복기</b></div>
         {reviews.length === 0 && <p className="kicker">이 세션에 끝난 핸드가 없습니다.</p>}
-        {reviews.map((r) => (
-          <details key={r.id} className="hand-block">
-            <summary>
-              <i className={`dot ${r.severity}`} />
-              <span className="hb-title">#{r.handNumber} {r.headline}</span>
-              <span className={r.totalLossBb > 0 ? "bad" : "muted"}>{r.totalLossBb > 0 ? signedBb(-r.totalLossBb, session.room?.bb) : "OK"}</span>
-            </summary>
-            <p className="kicker">{r.body}</p>
-            {r.streets && r.streets.length > 0 && (
-              <div className="street-rows">
-                {r.streets.map((s) => (
-                  <div key={s.street} className="street-row">
-                    <b>{s.label}</b>
-                    <span className="sr-board">{s.board}</span>
-                    <span className="sr-made">{s.made}</span>
-                    <span className="sr-act">{s.actions}</span>
-                    <span className="sr-note">{s.note}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </details>
-        ))}
+        {reviews.map((r) => {
+          const copy = displayReviewCopy(r);
+          const best = r.decision?.best ?? r.candidates?.[0];
+          const status = r.severity !== "green" && r.totalLossBb > 0
+            ? signedBb(-r.totalLossBb, session.room?.bb)
+            : r.decision
+              ? r.decision.lossBb === 0
+                ? "BEST"
+                : `Δ${signedBb(r.decision.lossBb, session.room?.bb).replace("+", "")}`
+              : best ? "EV" : "OK";
+          return (
+            <details key={r.id} className="hand-block">
+              <summary>
+                <i className={`dot ${r.severity}`} />
+                <span className="hb-title">#{r.handNumber} {copy.headline}</span>
+                <span className={r.severity !== "green" ? "bad" : "muted"}>{status}</span>
+              </summary>
+              <p className="kicker">{copy.body}</p>
+              {r.decision && (
+                <div className="recap-decision" aria-label="핵심 결정 EV 비교">
+                  <span><small>내 선택</small><b>{r.decision.played.label}</b><em>{signedBb(r.decision.played.ev, session.room?.bb)}</em></span>
+                  <span><small>최고 후보</small><b>{r.decision.best.label}</b><em>{signedBb(r.decision.best.ev, session.room?.bb)}</em></span>
+                </div>
+              )}
+              {!r.decision && best && (
+                <div className="recap-best">
+                  <small>저장된 후보 중 최고 EV</small><b>{best.label}</b><em>{signedBb(best.ev, session.room?.bb)}</em>
+                </div>
+              )}
+              {r.streets && r.streets.length > 0 && (
+                <div className="street-rows">
+                  {r.streets.map((s) => (
+                    <div key={s.street} className="street-row">
+                      <b>{s.label}</b>
+                      <span className="sr-board">{s.board}</span>
+                      <span className="sr-made">{s.made}</span>
+                      <span className="sr-act">{s.actions}</span>
+                      <span className="sr-note">{s.note}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </details>
+          );
+        })}
       </div>
 
       {showExtraKibos && (

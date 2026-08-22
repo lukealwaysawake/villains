@@ -3,7 +3,7 @@ import { parseCard } from "./cards";
 import { applyAction, createFreshPlayers, legalActions, positionFor, startHand } from "./game";
 import { Rng } from "./rng";
 import { canContinueSession, commitHand, createSession, dealNext, defaultProfile, defaultRoom, loadProfile, recordHabit } from "../state/store";
-import type { ReviewCard } from "../review/analyze";
+import { displayReviewCopy, mergeDecisionScores, type ReviewCard } from "../review/analyze";
 import { dollarRateStatus, formatSignedDollars, sumKnownDollars } from "../ui/money";
 import { behaviorProbe } from "./sim";
 import { scoreDecision } from "../review/ev";
@@ -232,6 +232,53 @@ const decision = scoreDecision(
 assert(decision.candidates.length >= 3, "decision review should compare multiple legal choices");
 assert(decision.lossBb > 0, "folding aces should produce a non-zero EV loss");
 assert(decision.played.label === "폴드", "played action should use a localized label");
+
+const greenReview: ReviewCard = {
+  ...pricedReview,
+  id: "green-review",
+  severity: "green",
+  totalLossBb: 0,
+  street: "flop",
+  headline: "괜찮은 핸드",
+  body: "착취 기준에서 큰 누수는 없었습니다.",
+  streets: [{
+    street: "flop",
+    label: "플랍",
+    board: "A♠ 7♦ 2♣",
+    made: "탑페어",
+    actions: "벳 $1",
+    potBb: 3,
+    note: "주도권 잡음",
+  }],
+};
+const playedBet = { action: "bet" as const, raiseTo: 100, label: "벳 $1", ev: 1.2 };
+const bestCheck = { action: "check" as const, raiseTo: 0, label: "체크", ev: 1.5 };
+const enrichedGreen = mergeDecisionScores(greenReview, [{
+  index: 4,
+  street: "flop",
+  heroAction: { type: "bet", amount: 100 },
+  candidates: [bestCheck, playedBet],
+  best: bestCheck,
+  played: playedBet,
+  lossBb: 0.3,
+  samples: 24,
+}]);
+assert(enrichedGreen.severity === "green", "small EV gaps should remain green");
+assert(enrichedGreen.headline.includes("벳 $1") && enrichedGreen.headline.includes("0.3bb"), "green review headline should name the actual decision and gap");
+assert(enrichedGreen.body.includes("체크") && !enrichedGreen.body.includes("큰 누수"), "green review body should explain the EV comparison instead of fallback copy");
+assert(enrichedGreen.decision?.played.label === "벳 $1" && enrichedGreen.decision.best.label === "체크", "review should persist played and best candidates");
+assert(enrichedGreen.decision?.samples === 24 && enrichedGreen.body.includes("24개"), "review should disclose the EV sample count");
+const normalizedDecisionCopy = displayReviewCopy({
+  ...enrichedGreen,
+  body: "24개 동일 표본에서 벳 $1은 +1.2bb, 체크는 +1.5bb로 차이가 났습니다.",
+});
+assert(normalizedDecisionCopy.body.includes("추정 EV는") && !normalizedDecisionCopy.body.includes("벳 $1은"), "stored EV reviews should be normalized to polished decision copy");
+
+const legacyCopy = displayReviewCopy({
+  ...greenReview,
+  candidates: [{ label: "체크", ev: 1.5 }, { label: "벳 $1", ev: 1.2 }],
+});
+assert(legacyCopy.headline.includes("플랍 벳 $1") && legacyCopy.body.includes("체크"), "legacy generic reviews should be reinterpreted from street and candidate data");
 
 function replayPolicyHand() {
   const ids = ["hero", "uncleho", "nitlee", "stationpark"];

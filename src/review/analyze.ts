@@ -1,7 +1,7 @@
 import { madeLabel, readSpot } from "../engine/handRank";
 import { RANK_GLYPH, SUIT_GLYPH } from "../engine/cards";
 import { describeAction, type TableState } from "../engine/game";
-import { chipsToBb, type ReviewSeverity, type Street } from "../engine/types";
+import { chipsToBb, type ActionType, type ReviewSeverity, type Street } from "../engine/types";
 import { VILLAIN_BY_ID } from "../villains/catalog";
 import type { DecisionEv } from "./ev";
 
@@ -34,6 +34,16 @@ export interface ReviewCard {
   gtoLine?: string;
   exploitLine?: string;
   candidates?: { label: string; ev: number }[];
+  decision?: ReviewDecision;
+  patternTag?: string;
+}
+
+export interface ReviewDecision {
+  street: Street;
+  played: { action: ActionType; label: string; ev: number };
+  best: { action: ActionType; label: string; ev: number };
+  lossBb: number;
+  samples: number;
 }
 
 function worstVillain(state: TableState): string | undefined {
@@ -224,29 +234,120 @@ export function analyzeHand(state: TableState): ReviewCard {
 
 export function mergeDecisionScores(review: ReviewCard, scores: DecisionEv[]): ReviewCard {
   if (scores.length === 0) return review;
-  const worst = scores.reduce((a, b) => (b.lossBb > a.lossBb ? b : a));
-  const loss = Math.max(review.totalLossBb, worst.lossBb);
-  const evDominates = worst.lossBb >= 0.8 && worst.lossBb > review.totalLossBb;
+  const focus = scores.reduce((a, b) => {
+    if (b.lossBb !== a.lossBb) return b.lossBb > a.lossBb ? b : a;
+    return b.index > a.index ? b : a;
+  });
+  const loss = Math.max(review.totalLossBb, focus.lossBb);
+  const ruleDominates = review.totalLossBb >= 0.8 && review.totalLossBb >= focus.lossBb;
+  const useDecisionCopy = !ruleDominates;
   const severity: ReviewSeverity = loss >= 5 ? "red" : loss >= 0.8 ? "yellow" : "green";
-  const playedEv = `${worst.played.ev >= 0 ? "+" : ""}${worst.played.ev.toFixed(1)}bb`;
-  const bestEv = `${worst.best.ev >= 0 ? "+" : ""}${worst.best.ev.toFixed(1)}bb`;
+  const playedEv = formatEvBb(focus.played.ev);
+  const bestEv = formatEvBb(focus.best.ev);
+  const gap = Math.round(focus.lossBb * 10) / 10;
+  const streetLabel = STREET_KO[focus.street];
+  const decisionHeadline = gap === 0
+    ? `${streetLabel} ${focus.played.label} · 최선 선택`
+    : gap < 0.8
+      ? `${streetLabel} ${focus.played.label} · ${gap.toFixed(1)}bb 차이`
+      : `${streetLabel} ${focus.played.label} · ${gap.toFixed(1)}bb 손실`;
+  const decisionBody = gap === 0
+    ? `${focus.samples}개 동일 표본에서 ${focus.played.label}의 추정 EV는 ${playedEv}로 비교 후보 중 가장 높았습니다.`
+    : `${focus.samples}개 동일 표본에서 ${focus.played.label}의 추정 EV는 ${playedEv}, ${focus.best.label}의 추정 EV는 ${bestEv}로 ${gap.toFixed(1)}bb 차이가 났습니다.`;
+  const sameAction = focus.played.action === focus.best.action;
+  const patternTag = gap >= 0.8
+    ? sameAction
+      ? `${streetLabel} ${actionKo(focus.played.action)} 사이징`
+      : `${streetLabel} ${actionKo(focus.played.action)} 대신 ${actionKo(focus.best.action)}`
+    : review.patternTag;
 
   return {
     ...review,
     severity,
     totalLossBb: Math.round(loss * 10) / 10,
-    street: evDominates ? worst.street : review.street,
-    headline: evDominates ? `${STREET_KO[worst.street]} 선택에서 ${worst.lossBb.toFixed(1)}bb 손실` : review.headline,
-    body: evDominates
-      ? `${worst.played.label}의 추정 EV는 ${playedEv}, ${worst.best.label}는 ${bestEv}입니다. 같은 숨은 카드 표본에서 더 나은 선택이 확인됐습니다.`
-      : review.body,
-    alt: evDominates ? `${worst.best.label} 라인을 우선 검토하세요.` : review.alt,
-    statLabel: evDominates ? "간이 EV 차이" : review.statLabel,
-    statValue: evDominates ? `${worst.lossBb.toFixed(1)}bb` : review.statValue,
-    gtoLine: "상대가 모르는 홀카드와 남은 보드를 같은 시드 표본으로 다시 나눠 후보 행동의 기대값을 비교합니다.",
-    exploitLine: `착취 기준 최적: ${worst.best.label} (${bestEv})`,
-    candidates: worst.candidates.map((candidate) => ({ label: candidate.label, ev: candidate.ev })),
+    street: useDecisionCopy ? focus.street : review.street,
+    headline: useDecisionCopy ? decisionHeadline : review.headline,
+    body: useDecisionCopy ? decisionBody : review.body,
+    alt: useDecisionCopy
+      ? gap === 0 ? `${focus.played.label} 라인을 유지하세요.` : `${focus.best.label} 라인을 우선 검토하세요.`
+      : review.alt,
+    statLabel: useDecisionCopy ? "EV 차이" : review.statLabel,
+    statValue: useDecisionCopy ? `${gap.toFixed(1)}bb` : review.statValue,
+    gtoLine: `상대 홀카드와 남은 보드를 같은 시드의 ${focus.samples}개 표본으로 다시 나눠 후보 행동의 기대값을 비교합니다.`,
+    exploitLine: gap === 0
+      ? `선택 유지: ${focus.played.label} (${playedEv})`
+      : `후보 중 최적: ${focus.best.label} (${bestEv})`,
+    candidates: focus.candidates.map((candidate) => ({ label: candidate.label, ev: candidate.ev })),
+    decision: {
+      street: focus.street,
+      played: { action: focus.played.action, label: focus.played.label, ev: focus.played.ev },
+      best: { action: focus.best.action, label: focus.best.label, ev: focus.best.ev },
+      lossBb: gap,
+      samples: focus.samples,
+    },
+    patternTag,
   };
+}
+
+const GENERIC_HEADLINES = new Set(["무난한 핸드", "괜찮은 핸드", "큰 팟 획득"]);
+const GENERIC_BODIES = new Set([
+  "큰 실수는 안 보였습니다.",
+  "착취 기준에서 큰 누수는 없었습니다.",
+  "결과는 졌지만 라인 자체는 무난합니다.",
+]);
+
+export function displayReviewCopy(review: ReviewCard): { headline: string; body: string } {
+  const generic = GENERIC_HEADLINES.has(review.headline) || GENERIC_BODIES.has(review.body);
+  if (review.decision && (generic || review.statLabel === "EV 차이")) {
+    const { decision } = review;
+    const street = STREET_KO[decision.street];
+    const gap = decision.lossBb;
+    return {
+      headline: gap === 0
+        ? `${street} ${decision.played.label} · 최선 선택`
+        : gap < 0.8
+          ? `${street} ${decision.played.label} · ${gap.toFixed(1)}bb 차이`
+          : `${street} ${decision.played.label} · ${gap.toFixed(1)}bb 손실`,
+      body: gap === 0
+        ? `${decision.samples}개 표본에서 ${decision.played.label}의 추정 EV는 ${formatEvBb(decision.played.ev)}로 비교 후보 중 가장 높았습니다.`
+        : `${decision.samples}개 표본에서 ${decision.played.label}의 추정 EV는 ${formatEvBb(decision.played.ev)}, ${decision.best.label}의 추정 EV는 ${formatEvBb(decision.best.ev)}로 ${gap.toFixed(1)}bb 차이입니다.`,
+    };
+  }
+  if (!generic) return { headline: review.headline, body: review.body };
+
+  const lastStreet = review.streets?.[review.streets.length - 1];
+  const best = review.candidates?.[0];
+  if (lastStreet && best) {
+    return {
+      headline: `${lastStreet.label} ${lastStreet.actions} · EV 비교`,
+      body: `${lastStreet.made} 상태에서 ${lastStreet.note}. 후보 중 ${best.label}의 추정 EV가 ${formatEvBb(best.ev)}로 가장 높았습니다.`,
+    };
+  }
+  if (lastStreet) {
+    return {
+      headline: `${lastStreet.label} ${lastStreet.actions}`,
+      body: `${lastStreet.made} 상태에서 ${lastStreet.note}. 당시 팟은 ${lastStreet.potBb.toFixed(1)}bb였습니다.`,
+    };
+  }
+  if (best) {
+    return {
+      headline: `${STREET_KO[review.street as Street] ?? "핸드"} 후보 EV 비교`,
+      body: `${best.label}의 추정 EV가 ${formatEvBb(best.ev)}로 가장 높았습니다.`,
+    };
+  }
+  return { headline: review.headline, body: review.body };
+}
+
+function formatEvBb(value: number): string {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}bb`;
+}
+
+function actionKo(action: ActionType): string {
+  if (action === "fold") return "폴드";
+  if (action === "check") return "체크";
+  if (action === "call") return "콜";
+  if (action === "allin") return "올인";
+  return action === "bet" ? "벳" : "레이즈";
 }
 
 function lastRaiseOver(state: TableState): boolean {
@@ -258,7 +359,7 @@ export function detectPatterns(reviews: ReviewCard[]): { tag: string; count: num
   const map = new Map<string, { count: number; loss: number }>();
   for (const r of reviews) {
     if (r.severity === "green") continue;
-    const tag = r.headline;
+    const tag = r.patternTag ?? r.headline;
     const cur = map.get(tag) ?? { count: 0, loss: 0 };
     cur.count += 1;
     cur.loss += r.totalLossBb;

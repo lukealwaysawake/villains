@@ -490,6 +490,15 @@ input[type="range"] { width: 100%; min-height: var(--tap); margin: 0; accent-col
 .hand-block summary { min-height: var(--tap); list-style: none; display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .hand-block summary::-webkit-details-marker { display: none; }
 .hb-title { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recap-decision { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 9px; }
+.recap-decision > span { min-width: 0; padding: 8px 9px; border: 1px solid var(--line); border-radius: 10px; display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-areas: "label ev" "action ev"; column-gap: 6px; background: rgba(255,255,255,.025); }
+.recap-decision small { grid-area: label; color: var(--muted); font-size: 9px; }
+.recap-decision b { grid-area: action; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.recap-decision em { grid-area: ev; align-self: center; color: var(--gold-bright); font-size: 11px; font-style: normal; font-weight: 700; }
+.recap-best { min-height: 38px; margin-top: 9px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 10px; display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-areas: "label ev" "action ev"; column-gap: 8px; background: rgba(255,255,255,.025); }
+.recap-best small { grid-area: label; color: var(--muted); font-size: 9px; }
+.recap-best b { grid-area: action; font-size: 11px; }
+.recap-best em { grid-area: ev; align-self: center; color: var(--gold-bright); font-size: 11px; font-style: normal; font-weight: 700; }
 .stars { color: var(--gold); letter-spacing: 2px; }
 .probe-rows { margin-top: 10px; display: grid; gap: 4px; }
 .probe-head, .probe-row { display: grid; grid-template-columns: 1.55fr repeat(4,.7fr); gap: 5px; align-items: center; font-size: 10px; }

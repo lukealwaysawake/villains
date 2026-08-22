@@ -146,11 +146,17 @@ export function TableScreen({
     async function finishHand() {
       let review = analyzeHand(completedTable);
       try {
-        const scores = await scoreDecisionsAsync({
+        const sampleCount = Math.max(16, Math.min(32, Math.floor(128 / Math.max(1, decisions.length))));
+        let scores = await scoreDecisionsAsync({
           decisions,
-          samples: 48,
+          samples: sampleCount,
           tell: nextProfile.settings.tellDifficulty,
         });
+        if (!scores && decisions.length > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          const { scoreDecisions } = await import("../review/ev");
+          scores = scoreDecisions(decisions, 12, nextProfile.settings.tellDifficulty);
+        }
         if (scores) review = mergeDecisionScores(review, scores);
       } catch {
         // The deterministic rule review remains a safe fallback if the worker fails.

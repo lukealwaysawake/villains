@@ -21,6 +21,7 @@ export interface DecisionEv {
   best: CandidateEv;
   played: CandidateEv;
   lossBb: number;
+  samples: number;
 }
 
 function dollarsFromChips(chips: number): string {
@@ -202,5 +203,23 @@ export function scoreDecision(
     best,
     played,
     lossBb: Math.max(0, Math.round((best.ev - played.ev) * 10) / 10),
+    samples: Math.max(1, samples),
   };
+}
+
+export function scoreDecisions(
+  decisions: DecisionSnapshot[],
+  samples: number,
+  tell = 0.78,
+): DecisionEv[] {
+  return decisions.map((decision) =>
+    scoreDecision(
+      decision.snapshot,
+      decision.heroType,
+      decision.heroRaiseTo,
+      decision.runtimes,
+      samples,
+      tell,
+    ),
+  );
 }
