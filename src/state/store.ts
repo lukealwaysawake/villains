@@ -20,6 +20,7 @@ export interface Settings {
 
 export interface Mastery {
   handsPlayed: number;
+  sessionsPlayed: number;
   bb: number;
   exploitHits: number;
   exploitChances: number;
@@ -61,6 +62,7 @@ export interface Session {
   tutorial: boolean;
   missedExploits: number;
   coachOn: boolean;
+  liveTable?: TableState | null;
 }
 
 export interface Profile {
@@ -111,7 +113,7 @@ export const defaultSettings = (): Settings => ({
 });
 
 export function emptyMastery(): Mastery {
-  return { handsPlayed: 0, bb: 0, exploitHits: 0, exploitChances: 0, leaksFound: [], hintsUsed: false };
+  return { handsPlayed: 0, sessionsPlayed: 0, bb: 0, exploitHits: 0, exploitChances: 0, leaksFound: [], hintsUsed: false };
 }
 
 export function defaultProfile(): Profile {
@@ -287,8 +289,13 @@ export function commitHand(profile: Profile, session: Session, state: TableState
   for (const id of session.villainIds) {
     const m = profile.mastery[id] ?? emptyMastery();
     m.handsPlayed += 1;
-    const villainDelta = state.result?.deltas[id] ?? 0;
-    m.bb += -chipsToBb(villainDelta);
+    const hero = state.players.find((p) => p.id === "hero");
+    const villain = state.players.find((p) => p.id === id);
+    const involved = state.players.filter((p) => p.id !== "hero" && p.contributedHand > 0);
+    const potShare = involved.reduce((s, p) => s + p.contributedHand, 0);
+    if (hero && villain && hero.contributedHand > 0 && villain.contributedHand > 0 && potShare > 0) {
+      m.bb += delta * (villain.contributedHand / potShare);
+    }
     if (review.villainId === id && review.leak) {
       m.exploitChances += 1;
       if (review.severity === "green") m.exploitHits += 1;
@@ -363,6 +370,12 @@ export function archiveSession(profile: Profile, session: Session | null | undef
   const sum = summarizeSession(session);
   const rest = (profile.sessionHistory ?? []).filter((s) => s.id !== sum.id);
   profile.sessionHistory = [sum, ...rest].slice(0, 30);
+  for (const id of session.villainIds) {
+    const m = profile.mastery[id] ?? emptyMastery();
+    m.sessionsPlayed = (m.sessionsPlayed ?? 0) + 1;
+    profile.mastery[id] = m;
+  }
+  session.liveTable = null;
   profile.lastSession = session;
   saveProfile(profile);
   return profile;
@@ -393,4 +406,16 @@ export function importProfile(raw: string): Profile {
   };
   saveProfile(next);
   return next;
+}
+
+export function persistLive(profile: Profile, session: Session, table: TableState | null): void {
+  session.liveTable = table;
+  profile.lastSession = session;
+  saveProfile(profile);
+}
+
+export function canShowHint(profile: Profile, id: string): boolean {
+  if (profile.settings.unlockAll || profile.settings.isPro) return true;
+  const m = profile.mastery[id] ?? emptyMastery();
+  return m.sessionsPlayed >= 3 || m.handsPlayed >= 60;
 }

@@ -12,6 +12,7 @@ import {
   saveProfile,
   sessionPatterns,
   archiveSession,
+  canShowHint,
   saveCombo,
   exportProfile,
   importProfile,
@@ -332,6 +333,14 @@ function Report({ session, profile, go }: { session: Session; profile: Profile; 
         ))}
       </div>}
       <p className="kicker">놓친 착취 {session.missedExploits ?? 0}개 · 놓친 리뷰 {profile.reviewQueue.filter((r) => !r.viewed).length}개</p>
+      {session.fairness && (
+        <div className="card">
+          <div className="row"><span className="idx">SEED</span><b>시드 공개</b></div>
+          <p className="kicker">hash {session.fairness.seedServerHash}</p>
+          <p className="kicker">server {session.fairness.seedServer}</p>
+          <p className="kicker">client {session.seedClient}</p>
+        </div>
+      )}
       <button className="btn launch wide" onClick={() => go("home")}>홈으로</button>
       <button className="btn wide" style={{ marginTop: 8 }} onClick={() => go("reviews")}>리뷰 몰아보기</button>
       <button className="btn glass wide" style={{ marginTop: 8 }} onClick={() => go("history")}>플레이 기록</button>
@@ -387,7 +396,7 @@ function Detail({
   const v = VILLAIN_BY_ID[id];
   const m = profile.mastery[id];
   const lock = !isUnlocked(profile, id);
-  const canHint = m.handsPlayed >= 60 || profile.settings.unlockAll;
+  const canHint = canShowHint(profile, id);
   return (
     <section className="screen">
       <button className="btn" onClick={back}>도감</button>

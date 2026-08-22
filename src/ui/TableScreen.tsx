@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { applyAction, createFreshPlayers, describeAction, legalActions, positionFor, potTotal, seatCount, sizingPresets, startHand, type TableState } from "../engine/game";
 import { BB } from "../engine/types";
 import { analyzeHand, type ReviewCard } from "../review/analyze";
-import { scoreDecision } from "../review/ev";
-import { commitHand, isPro, remainingDailyHands, type Profile, type Session } from "../state/store";
+import { scoreDecisionAsync } from "../review/evClient";
+import { commitHand, isPro, persistLive, remainingDailyHands, type Profile, type Session } from "../state/store";
 import { VILLAIN_BY_ID } from "../villains/catalog";
 import { decideVillain, delayFor } from "../villains/policy";
 import { maybeSpeak, onHandEnd, sessionStartLines, updateHeroRead, type SpeechEvent } from "../villains/runtime";
@@ -64,12 +64,27 @@ export function TableScreen({
       return;
     }
     const next = structuredClone(sessionRef.current);
-    const first = deal(next);
-    setSession(next);
-    setTable(first);
-    const lines = sessionStartLines(next.runtimes);
-    if (lines[0]) setSpeech(lines[0]);
+    if (next.liveTable) {
+      setSession(next);
+      setTable(next.liveTable);
+      if (next.liveTable.street === "complete") committed.current = next.liveTable.handNumber;
+    } else {
+      const first = deal(next);
+      next.liveTable = first;
+      setSession(next);
+      setTable(first);
+      persistLive(profileRef.current, next, first);
+      const lines = sessionStartLines(next.runtimes);
+      if (lines[0]) setSpeech(lines[0]);
+    }
   }, [setSession]);
+
+  useEffect(() => {
+    if (!table) return;
+    const s = sessionRef.current;
+    s.liveTable = table;
+    persistLive(profileRef.current, s, table);
+  }, [table]);
 
   useEffect(() => {
     if (!speech) return;
@@ -117,20 +132,6 @@ export function TableScreen({
     let review = analyzeHand(table);
     const heroActs = table.actionLog.filter((a) => a.actorId === "hero");
     const last = heroActs[heroActs.length - 1];
-    if (last && last.type !== "fold") {
-      try {
-        const scored = scoreDecision(table, last.type, last.amount, sessionRef.current.runtimes, 6);
-        review = {
-          ...review,
-          totalLossBb: Math.max(review.totalLossBb, scored.lossBb),
-          candidates: scored.candidates.map((c) => ({ label: c.label, ev: c.ev })),
-          exploitLine: scored.best ? `착취 기준 최적: ${scored.best.label} (${scored.best.ev >= 0 ? "+" : ""}${scored.best.ev.toFixed(1)}bb)` : review.exploitLine,
-          severity: Math.max(review.totalLossBb, scored.lossBb) >= 5 ? "red" : Math.max(review.totalLossBb, scored.lossBb) >= 0.8 ? "yellow" : "green",
-        };
-      } catch {
-        /* keep template review */
-      }
-    }
     const nextSession = structuredClone(sessionRef.current);
     const nextProfile = structuredClone(profileRef.current);
     for (const id of nextSession.villainIds) updateHeroRead(nextSession.runtimes[id], table);
@@ -142,6 +143,29 @@ export function TableScreen({
     setSession(nextSession);
     setProfile(nextProfile);
     setBadge(review);
+    if (last && last.type !== "fold") {
+      void scoreDecisionAsync({
+        state: table,
+        runtimes: nextSession.runtimes,
+        heroType: last.type,
+        heroRaiseTo: last.amount,
+        samples: 24,
+        tell: nextProfile.settings.tellDifficulty,
+      }).then((scored) => {
+        if (!scored) return;
+        setBadge((cur) => {
+          if (!cur || cur.handNumber !== review.handNumber) return cur;
+          const loss = Math.max(cur.totalLossBb, scored.lossBb);
+          return {
+            ...cur,
+            totalLossBb: loss,
+            candidates: scored.candidates.map((c) => ({ label: c.label, ev: c.ev })),
+            exploitLine: scored.best ? "착취 기준 최적: " + scored.best.label : cur.exploitLine,
+            severity: loss >= 5 ? "red" : loss >= 0.8 ? "yellow" : "green",
+          };
+        });
+      });
+    }
     const force = nextSession.tutorial && !nextProfile.firstReviewDone;
     const pause =
       force ||
@@ -183,7 +207,8 @@ export function TableScreen({
   const presets = legal ? sizingPresets(legal) : [];
   const heroTurn = !!table && table.toAct === 0 && table.street !== "complete";
   const pot = table ? potTotal(table) : 0;
-  const coach = table && session.coachOn && heroTurn ? coachLine(table) : null;
+  const tutorialOn = session.tutorial && session.handsPlayed < 30;
+  const coach = table && (session.coachOn || tutorialOn) && heroTurn ? coachLine(table) : null;
   const canL2 = isPro(profile) || session.l2Used < 3;
 
 
@@ -268,6 +293,7 @@ export function TableScreen({
                   <div className="tool-chips">
                     <span className="tool-chip">VPIP {def.baseStats.vpip}</span>
                     <span className="tool-chip">PFR {def.baseStats.pfr}</span>
+                    {full && <span className="tool-chip">{pos} VPIP {def.positionalStats?.[pos]?.vpip ?? def.baseStats.vpip}</span>}
                     {full && <span className="tool-chip">3b {def.baseStats.threeBet}</span>}
                     <span className="tool-chip">AF {def.baseStats.aggressionFactor}</span>
                   </div>
