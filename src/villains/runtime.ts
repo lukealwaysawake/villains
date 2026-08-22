@@ -1,6 +1,7 @@
 import { chipsToBb } from "../engine/types";
 import type { TableState } from "../engine/game";
 import { VILLAIN_BY_ID } from "./catalog";
+import { linesFor } from "./dialogue";
 import type { TriggerType, VillainRuntime } from "./types";
 
 export interface SpeechEvent {
@@ -148,5 +149,8 @@ export function updateHeroRead(rt: VillainRuntime, state: TableState): void {
   if (rt.villainId === "greatwhite") {
     if (rt.heroRead.cbetFoldRate > 0.55 && rt.heroRead.hands >= 12) rt.cbetBoost = 78;
     if (rt.heroRead.threeBetFreq > 0.12 && rt.heroRead.hands >= 16) rt.fourBetBoost = 2;
+  }
+}
+ost = 2;
   }
 }

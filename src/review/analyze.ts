@@ -190,6 +190,8 @@ export function analyzeHand(state: TableState): ReviewCard {
     leak,
     villainId: opp?.id,
     viewed: false,
+    gtoLine: "GTO 기준: 밸런스 혼합. 블러프 빈도는 상대가 폴드하는 만큼만.",
+    exploitLine: body,
   };
 }
 
@@ -209,6 +211,12 @@ export function detectPatterns(reviews: ReviewCard[]): { tag: string; count: num
     map.set(tag, cur);
   }
   return [...map.entries()]
+    .map(([tag, v]) => ({ tag, ...v }))
+    .filter((x) => x.count >= 2)
+    .sort((a, b) => b.loss - a.loss)
+    .slice(0, 3);
+}
+]
     .map(([tag, v]) => ({ tag, ...v }))
     .filter((x) => x.count >= 2)
     .sort((a, b) => b.loss - a.loss)

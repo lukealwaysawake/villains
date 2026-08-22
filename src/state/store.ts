@@ -1,11 +1,11 @@
+import { createFairness, type FairnessRecord } from "../engine/fairness";
 import { createFreshPlayers, startHand, type TableState } from "../engine/game";
-import { Rng } from "../engine/rng";
 import { chipsToBb } from "../engine/types";
 import { PRESETS, STARTER_UNLOCKS, VILLAIN_BY_ID, VILLAINS } from "../villains/catalog";
 import { createRuntime, type VillainRuntime } from "../villains/types";
 import { detectPatterns, type ReviewCard } from "../review/analyze";
 
-export type Screen = "home" | "lobby" | "table" | "report" | "dex" | "detail" | "reviews" | "settings" | "onboarding";
+export type Screen = "home" | "lobby" | "table" | "report" | "dex" | "detail" | "reviews" | "settings" | "onboarding" | "fairness";
 export type HudMode = "learn" | "standard" | "split" | "off";
 export type ReviewPause = "off" | "red" | "yellow" | "all";
 
@@ -15,6 +15,7 @@ export interface Settings {
   tellDifficulty: number;
   animSpeed: number;
   unlockAll: boolean;
+  isPro: boolean;
 }
 
 export interface Mastery {
@@ -31,7 +32,11 @@ export interface HeroStats {
   vpip: number;
   pfr: number;
   threeBet: number;
-  agg: number;
+  threeBetOpp: number;
+  aggBet: number;
+  aggCall: number;
+  wtsd: number;
+  sawFlop: number;
 }
 
 export interface Session {
@@ -51,6 +56,11 @@ export interface Session {
   reviews: ReviewCard[];
   heroFoldStreak: number;
   startedAt: number;
+  fairness?: FairnessRecord;
+  l2Used: number;
+  tutorial: boolean;
+  missedExploits: number;
+  coachOn: boolean;
 }
 
 export interface Profile {
@@ -61,6 +71,9 @@ export interface Profile {
   lifetimeHands: number;
   settings: Settings;
   lastSession?: Session;
+  savedCombos: { name: string; ids: string[] }[];
+  daily: { date: string; hands: number };
+  firstReviewDone: boolean;
 }
 
 const KEY = "villains.v1";
@@ -70,7 +83,8 @@ export const defaultSettings = (): Settings => ({
   reviewPause: "off",
   tellDifficulty: 0.78,
   animSpeed: 1,
-  unlockAll: true,
+  unlockAll: false,
+  isPro: false,
 });
 
 export function emptyMastery(): Mastery {
@@ -85,6 +99,9 @@ export function defaultProfile(): Profile {
     reviewQueue: [],
     lifetimeHands: 0,
     settings: defaultSettings(),
+    savedCombos: [],
+    daily: { date: todayKey(), hands: 0 },
+    firstReviewDone: false,
   };
 }
 
@@ -92,7 +109,16 @@ export function loadProfile(): Profile {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return defaultProfile();
-    return { ...defaultProfile(), ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw) as Partial<Profile>;
+    const base = defaultProfile();
+    return {
+      ...base,
+      ...parsed,
+      settings: { ...base.settings, ...(parsed.settings ?? {}) },
+      mastery: { ...base.mastery, ...(parsed.mastery ?? {}) },
+      daily: parsed.daily ?? base.daily,
+      savedCombos: parsed.savedCombos ?? [],
+    };
   } catch {
     return defaultProfile();
   }
@@ -115,38 +141,67 @@ export function masteryPct(m: Mastery, expected = 15): number {
   return Math.max(0, Math.min(99, Math.round(vol + Math.min(35, (edge / expected) * 25) + acc * 0.25 + m.leaksFound.length * 8)));
 }
 
-export function createSession(villainIds: string[], presetId?: string): Session {
-  const rng = new Rng(Date.now().toString(36) + Math.random().toString(36));
-  const seedClient = rng.int(1e9).toString(16);
-  const seedServer = rng.int(1e9).toString(16);
-  const seed = `${seedServer}:${seedClient}`;
+export function todayKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export const FREE_VILLAINS = ["uncleho", "nitlee", "stationpark", "foldjeong", "weekend", "bulldozer"];
+
+export function isPro(profile: Profile): boolean {
+  return profile.settings.isPro || profile.settings.unlockAll;
+}
+
+export function remainingDailyHands(profile: Profile): number {
+  if (isPro(profile)) return 99999;
+  const d = profile.daily.date === todayKey() ? profile.daily.hands : 0;
+  return Math.max(0, 300 - d);
+}
+
+export function canUseVillain(profile: Profile, id: string): boolean {
+  if (!isUnlocked(profile, id)) return false;
+  if (isPro(profile)) return true;
+  return FREE_VILLAINS.includes(id);
+}
+
+export function canUsePreset(profile: Profile, presetId: string): boolean {
+  if (isPro(profile)) return true;
+  return presetId === "intro";
+}
+
+export function createSession(villainIds: string[], presetId?: string, opts?: { tutorial?: boolean; seedClient?: string }): Session {
+  const fair = createFairness(opts?.seedClient);
   const ids = ["hero", ...villainIds];
   const players = createFreshPlayers(ids);
   const stacks = Object.fromEntries(players.map((p) => [p.id, p.stack]));
   const runtimes = Object.fromEntries(villainIds.map((id, i) => [id, createRuntime(id, i + 1)]));
   return {
-    id: seed,
+    id: fair.finalSeed,
     presetId,
     villainIds,
-    seed,
-    seedClient,
-    seedServerHash: seedServer.split("").reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0).toString(16),
+    seed: fair.finalSeed,
+    seedClient: fair.seedClient,
+    seedServerHash: fair.seedServerHash,
     handNumber: 0,
     button: 0,
     stacks,
     bbDelta: 0,
     handsPlayed: 0,
-    heroStats: { hands: 0, vpip: 0, pfr: 0, threeBet: 0, agg: 0 },
+    heroStats: { hands: 0, vpip: 0, pfr: 0, threeBet: 0, threeBetOpp: 0, aggBet: 0, aggCall: 0, wtsd: 0, sawFlop: 0 },
     runtimes,
     reviews: [],
     heroFoldStreak: 0,
     startedAt: Date.now(),
+    fairness: fair,
+    l2Used: 0,
+    tutorial: !!opts?.tutorial,
+    missedExploits: 0,
+    coachOn: !!opts?.tutorial,
   };
 }
 
 export function dealNext(session: Session): TableState {
   session.handNumber += 1;
-  session.button = (session.button + 1) % 6;
+  session.button = (session.button + 1) % (session.villainIds.length + 1);
   const ids = ["hero", ...session.villainIds];
   const players = createFreshPlayers(ids).map((p) => ({ ...p, stack: session.stacks[p.id] ?? p.stack }));
   return startHand({
@@ -168,6 +223,19 @@ export function commitHand(profile: Profile, session: Session, state: TableState
   const pr = heroActs.some((a) => a.street === "preflop" && (a.type === "raise" || a.type === "bet" || a.type === "allin"));
   if (vp) session.heroStats.vpip += 1;
   if (pr) session.heroStats.pfr += 1;
+  const facedOpen = state.actionLog.some((a) => a.actorId !== "hero" && a.street === "preflop" && (a.type === "raise" || a.type === "bet"));
+  if (facedOpen) session.heroStats.threeBetOpp += 1;
+  if (facedOpen && heroActs.filter((a) => a.street === "preflop" && (a.type === "raise" || a.type === "allin")).length >= 1 && pr) {
+    const hero3 = heroActs.some((a) => a.street === "preflop" && (a.type === "raise" || a.type === "allin") && a.toCall >= 100);
+    if (hero3) session.heroStats.threeBet += 1;
+  }
+  session.heroStats.aggBet += heroActs.filter((a) => a.type === "bet" || a.type === "raise" || a.type === "allin").length;
+  session.heroStats.aggCall += heroActs.filter((a) => a.type === "call").length;
+  if (state.board.length >= 3 && !state.players[0].folded) session.heroStats.sawFlop += 1;
+  if (state.result?.shown[0]) session.heroStats.wtsd += 1;
+  if (review.severity !== "green" && review.leak) session.missedExploits += 1;
+  if (profile.daily.date !== todayKey()) profile.daily = { date: todayKey(), hands: 0 };
+  profile.daily.hands += 1;
   if (heroActs[0]?.type === "fold" && heroActs.length === 1) session.heroFoldStreak += 1;
   else session.heroFoldStreak = 0;
 
@@ -232,4 +300,6 @@ export function presetById(id: string) {
 
 export function villainName(id: string) {
   return VILLAIN_BY_ID[id]?.name ?? id;
+}
+VILLAIN_BY_ID[id]?.name ?? id;
 }

@@ -83,8 +83,9 @@ function nextSeat(from: number, seats = 6): number {
 }
 
 function firstLiveFrom(state: TableState, from: number): number | null {
-  for (let i = 0; i < state.players.length; i++) {
-    const seat = (from + i) % state.players.length;
+  const n = seatCount(state);
+  for (let i = 0; i < n; i++) {
+    const seat = (from + i) % n;
     const p = state.players[seat];
     if (!p.folded && !p.allIn) return seat;
   }
@@ -159,12 +160,13 @@ export function startHand(args: {
     p.hole = [state.deck.pop()!, state.deck.pop()!];
   }
 
-  const sb = nextSeat(state.button);
-  const bb = nextSeat(sb);
+  const n = seatCount(state);
+  const sb = nextSeat(state.button, n);
+  const bb = nextSeat(sb, n);
   post(state, sb, SB);
   post(state, bb, BB);
   state.lastFullRaiser = bb;
-  const utg = nextSeat(bb);
+  const utg = nextSeat(bb, n);
   state.toAct = firstLiveFrom(state, utg);
   state.playersToAct = actorsLeft(state).length;
   if (livePlayers(state).length < 2) finishUncontested(state);
@@ -215,7 +217,7 @@ function advanceOrClose(state: TableState): void {
     nextStreet(state);
     return;
   }
-  const from = nextSeat(state.toAct ?? 0);
+  const from = nextSeat(state.toAct ?? 0, seatCount(state));
   const nxt = firstLiveFrom(state, from);
   state.toAct = nxt;
   if (nxt === null) {
@@ -336,7 +338,7 @@ function nextStreet(state: TableState): void {
     showdown(state);
     return;
   }
-  const first = firstLiveFrom(state, nextSeat(state.button));
+  const first = firstLiveFrom(state, nextSeat(state.button, seatCount(state)));
   state.toAct = first;
   state.playersToAct = actorsLeft(state).length;
 }
@@ -480,5 +482,14 @@ export function describeAction(action: Action): string {
       return `레이즈 ${bb(action.amount)}`;
     case "allin":
       return `올인 ${bb(action.amount)}`;
+  }
+}
+aise":
+      return `레이즈 ${bb(action.amount)}`;
+    case "allin":
+      return `올인 ${bb(action.amount)}`;
+  }
+}
+ ${bb(action.amount)}`;
   }
 }

@@ -30,8 +30,8 @@ export function App() {
     setScreen(s);
   }
 
-  function start(ids: string[], presetId?: string) {
-    const s = createSession(ids, presetId);
+  function start(ids: string[], presetId?: string, tutorial = false) {
+    const s = createSession(ids, presetId, { tutorial });
     setSession(s);
     setScreen("table");
   }
@@ -43,7 +43,7 @@ export function App() {
           onDone={() => {
             const next = { ...profile, onboardingDone: true };
             setProfile(next);
-            start(["uncleho", "nitlee", "stationpark", "foldjeong", "weekend"], "intro");
+            start(["uncleho", "nitlee", "stationpark"], "intro", true);
           }}
         />
       )}
@@ -93,7 +93,8 @@ export function App() {
           setProfile={setProfile}
         />
       )}
-      {screen === "settings" && <SettingsScreen profile={profile} setProfile={setProfile} />}
+      {screen === "settings" && <SettingsScreen profile={profile} setProfile={setProfile} go={go} />}
+      {screen === "fairness" && <Fairness session={session} go={go} />}
       <Nav screen={screen} go={go} hidden={screen === "table" || screen === "onboarding"} />
     </div>
   );
@@ -154,7 +155,7 @@ function Home({
     <section className="screen">
       <div className="topbar">
         <div className="brand">VILLAINS<small>NLHE 착취 트레이너</small></div>
-        <span className="tier">{profile.lifetimeHands} HANDS</span>
+        <span className="tier">{profile.lifetimeHands} HANDS · 오늘 {remainingDailyHands(profile) >= 99999 ? "∞" : remainingDailyHands(profile)}</span>
       </div>
       {session && session.handsPlayed > 0 && (
         <button className="card" style={{ width: "100%", textAlign: "left" }} onClick={resume}>
@@ -213,7 +214,7 @@ function Lobby({
         <span />
       </div>
       {PRESETS.map((p) => {
-        const locked = p.villains.some((id) => !isUnlocked(profile, id));
+        const locked = p.villains.some((id) => !isUnlocked(profile, id)) || !canUsePreset(profile, p.id) || p.villains.some((id) => !canUseVillain(profile, id));
         return (
           <button key={p.id} className="card" style={{ width: "100%", textAlign: "left" }} disabled={locked} onClick={() => start([...p.villains], p.id)}>
             <div className="row">
@@ -285,7 +286,7 @@ function Report({ session, profile, go }: { session: Session; profile: Profile; 
           );
         })}
       </div>
-      <div className="card">
+      {isPro(profile) && <div className="card">
         <b>반복 실수</b>
         {patterns.length === 0 && <p className="kicker">아직 반복 패턴이 없습니다.</p>}
         {patterns.map((p) => (
@@ -296,8 +297,8 @@ function Report({ session, profile, go }: { session: Session; profile: Profile; 
             </div>
           </div>
         ))}
-      </div>
-      <p className="kicker">놓친 리뷰 {profile.reviewQueue.filter((r) => !r.viewed).length}개</p>
+      </div>}
+      <p className="kicker">놓친 착취 {session.missedExploits ?? 0}개 · 놓친 리뷰 {profile.reviewQueue.filter((r) => !r.viewed).length}개</p>
       <button className="btn primary wide" onClick={() => go("home")}>홈으로</button>
       <button className="btn wide" style={{ marginTop: 8 }} onClick={() => go("reviews")}>리뷰 몰아보기</button>
     </section>
@@ -499,6 +500,62 @@ function SettingsScreen({ profile, setProfile }: { profile: Profile; setProfile:
         </div>
         <p className="kicker">프리뷰용입니다. 끄면 기획서의 언락 순서를 따릅니다.</p>
       </div>
+      <div className="card">
+        <div className="row">
+          <b>Pro</b>
+          <button className={`sel ${s.isPro ? "on" : ""}`} onClick={() => patch({ isPro: !s.isPro })}>
+            {s.isPro ? "ON" : "OFF"}
+          </button>
+        </div>
+        <p className="kicker">결제 연동 전 개발 스위치. 켜면 15명, 무제한 핸드, L2/패턴/조건부 HUD가 열립니다.</p>
+      </div>
+      <button className="btn wide" onClick={() => go("fairness")}>공정성 검증 / 자기대전</button>
+    </section>
+  );
+}
+
+function Fairness({ session, go }: { session: Session | null; go: (s: Screen) => void }) {
+  const [server, setServer] = useState(session?.fairness?.seedServer ?? "");
+  const [hash, setHash] = useState(session?.fairness?.seedServerHash ?? "");
+  const [ok, setOk] = useState<string>("");
+  const [rows, setRows] = useState<{ name: string; bb100: number; hands: number }[] | null>(null);
+  return (
+    <section className="screen">
+      <h1>공정성</h1>
+      <p className="kicker">세션 시작 때 서버 시드 해시를 먼저 공개합니다. 종료 후 원문을 넣으면 같은 해시가 나와야 합니다. 빌런 정책은 상대 홀카드를 인자로 받지 않습니다.</p>
+      <div className="card">
+        <div className="muted">commit hash</div>
+        <b style={{ wordBreak: "break-all", fontSize: 12 }}>{hash || "세션 없음"}</b>
+        <input style={{ width: "100%", marginTop: 8, background: "#12141a", border: "1px solid #333", color: "inherit", padding: 8, borderRadius: 8 }} value={server} onChange={(e) => setServer(e.target.value)} placeholder="seed_server" />
+        <button className="btn primary wide" style={{ marginTop: 8 }} onClick={() => setOk(verifyCommit(server, hash) ? "검증 성공" : "불일치")}>{ok || "해시 검증"}</button>
+      </div>
+      {session && (
+        <div className="card">
+          <div className="row"><span>client</span><b style={{ fontSize: 11 }}>{session.seedClient.slice(0, 12)}…</b></div>
+          <div className="row"><span>final</span><b style={{ fontSize: 11 }}>{session.seed.slice(0, 16)}…</b></div>
+        </div>
+      )}
+      <div className="card">
+        <b>자기대전 샘플</b>
+        <p className="kicker">브라우저에서 약 240핸드만 돌립니다. 기획서의 50만 핸드는 CI용입니다.</p>
+        <button className="btn wide" onClick={() => setRows(roundRobin(240))}>돌리기</button>
+        {rows && rows.map((r) => (
+          <div key={r.id} className="row" style={{ marginTop: 6 }}><span>{r.name}</span><b>{r.bb100.toFixed(1)}</b></div>
+        ))}
+      </div>
+      <button className="btn wide" onClick={() => go("settings")}>설정으로</button>
+    </section>
+  );
+}
+    </div>
+      <button className="btn wide" onClick={() => go("settings")}>설정으로</button>
+    </section>
+  );
+}
+</div>
+        ))}
+      </div>
+      <button className="btn wide" onClick={() => go("settings")}>설정으로</button>
     </section>
   );
 }
