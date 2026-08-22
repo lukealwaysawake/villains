@@ -265,9 +265,16 @@ export function TableScreen({
               <div className="seat-card">
                 <div className="nm">{p.id === "hero" ? "나" : def?.name} · {pos}</div>
                 <div className="st">{bb(p.stack)}</div>
-                {showHud && def && <div className="hud">{hudText(p.id, full)}</div>}
+                {showHud && def && (
+                  <div className="tool-chips">
+                    <span className="tool-chip">VPIP {def.baseStats.vpip}</span>
+                    <span className="tool-chip">PFR {def.baseStats.pfr}</span>
+                    {full && <span className="tool-chip">3b {def.baseStats.threeBet}</span>}
+                    <span className="tool-chip">AF {def.baseStats.aggressionFactor}</span>
+                  </div>
+                )}
                 {rt && rt.emotion !== "NORMAL" && <div className="emo">{rt.emotion}</div>}
-                {thinking === p.id && <div className="think"><i /><i /><i /></div>}
+                {thinking === p.id && <div className="orbit" aria-label="생각 중" />}
               </div>
               {p.contributedStreet > 0 && <div className="chip">{bb(p.contributedStreet)}</div>}
             </div>

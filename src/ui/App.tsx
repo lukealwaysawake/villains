@@ -294,14 +294,15 @@ function Report({ session, profile, go }: { session: Session; profile: Profile; 
         })}
       </div>
       {isPro(profile) && <div className="card">
-        <b>반복 실수</b>
+        <div className="row"><span className="idx">02</span><b>반복 실수</b></div>
         {patterns.length === 0 && <p className="kicker">아직 반복 패턴이 없습니다.</p>}
         {patterns.map((p) => (
-          <div key={p.tag} className="list-item">
-            <div>
+          <div key={p.tag} className="task-row">
+            <div style={{ flex: 1 }}>
               <b>{p.tag}</b>
-              <div className="kicker">{p.count}회 · −{p.loss.toFixed(1)}bb</div>
+              <div className="kicker">{p.count}회 · -{p.loss.toFixed(1)}bb</div>
             </div>
+            <span className="status">TRACE</span>
           </div>
         ))}
       </div>}
@@ -553,4 +554,6 @@ function Fairness({ session, go }: { session: Session | null; go: (s: Screen) =>
       <button className="btn wide" onClick={() => go("settings")}>설정으로</button>
     </section>
   );
+}
+ );
 }

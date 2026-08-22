@@ -459,7 +459,7 @@ input[type="range"] { width: 100%; accent-color: var(--gold); margin-top: 8px; }
 
 @media (max-height: 720px) {
   .pcard.lg { width: 44px; height: 62px; }
-  .seat-card .hud { display: none; }
+  .seat-card .hud, .seat-card .tool-chips { display: none; }
   .felt-ring { inset: 10% 6% 16%; }
 }
 
@@ -594,4 +594,97 @@ input[type="range"] { width: 100%; accent-color: var(--gold); margin-top: 8px; }
 
 @keyframes tui-orbit {
   to { transform: rotate(360deg); }
+}
+
+/* Beautiful UI–inspired primitives, adapted for the poker trainer. */
+.idx {
+  font-family: Fraunces, serif;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+.insight {
+  background: linear-gradient(180deg, #171922, #101217);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px;
+}
+.insight .meter {
+  height: 4px;
+  margin-top: 10px;
+  border-radius: 99px;
+  background: #2a2d34;
+  overflow: hidden;
+}
+.insight .meter > i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #6fbf8a, var(--gold));
+}
+.tool-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  margin-top: 3px;
+}
+.tool-chip {
+  font-size: 8px;
+  letter-spacing: 0.02em;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #ddd6c8;
+}
+.task-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.task-row .status {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.orbit {
+  width: 14px;
+  height: 14px;
+  margin: 3px auto 0;
+  border-radius: 50%;
+  border: 1.5px solid rgba(240, 212, 138, 0.25);
+  border-top-color: var(--gold-2);
+  animation: spin 0.7s linear infinite;
+}
+.reco {
+  background: #14161c;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+}
+.reco .conf {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.trace {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 8px 10px;
+  border-left: 2px solid var(--gold);
+  background: rgba(212, 175, 88, 0.06);
+  border-radius: 0 10px 10px 0;
+}
+.shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
 }
