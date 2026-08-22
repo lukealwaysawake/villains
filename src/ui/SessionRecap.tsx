@@ -57,14 +57,27 @@ export function SessionRecap({
         <div className="row"><span className="idx">02</span><b>핸드 복기</b></div>
         {reviews.length === 0 && <p className="kicker">이 세션에 끝난 핸드가 없습니다.</p>}
         {reviews.map((r) => (
-          <div key={r.id} className="task-row">
-            <i className={`dot ${r.severity}`} />
-            <div style={{ flex: 1 }}>
-              <b>#{r.handNumber} {r.headline}</b>
-              <div className="kicker">{r.body}</div>
-            </div>
-            <span className={r.totalLossBb > 0 ? "bad" : "muted"}>{r.totalLossBb > 0 ? `-${r.totalLossBb}` : "OK"}</span>
-          </div>
+          <details key={r.id} className="hand-block">
+            <summary>
+              <i className={`dot ${r.severity}`} />
+              <span className="hb-title">#{r.handNumber} {r.headline}</span>
+              <span className={r.totalLossBb > 0 ? "bad" : "muted"}>{r.totalLossBb > 0 ? `-${r.totalLossBb}` : "OK"}</span>
+            </summary>
+            <p className="kicker">{r.body}</p>
+            {r.streets && r.streets.length > 0 && (
+              <div className="street-rows">
+                {r.streets.map((s) => (
+                  <div key={s.street} className="street-row">
+                    <b>{s.label}</b>
+                    <span className="sr-board">{s.board}</span>
+                    <span className="sr-made">{s.made}</span>
+                    <span className="sr-act">{s.actions}</span>
+                    <span className="sr-note">{s.note}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </details>
         ))}
       </div>
 

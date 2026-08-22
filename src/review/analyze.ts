@@ -1,7 +1,18 @@
 import { madeLabel, readSpot } from "../engine/handRank";
-import type { TableState } from "../engine/game";
+import { RANK_GLYPH, SUIT_GLYPH } from "../engine/cards";
+import { describeAction, type TableState } from "../engine/game";
 import { BB, chipsToBb, type ReviewSeverity, type Street } from "../engine/types";
 import { VILLAIN_BY_ID } from "../villains/catalog";
+
+export interface StreetReview {
+  street: Street;
+  label: string;
+  board: string;
+  made: string;
+  actions: string;
+  potBb: number;
+  note: string;
+}
 
 export interface ReviewCard {
   id: string;
@@ -17,6 +28,7 @@ export interface ReviewCard {
   leak?: string;
   villainId?: string;
   viewed: boolean;
+  streets?: StreetReview[];
 }
 
 function worstVillain(state: TableState): string | undefined {
@@ -172,6 +184,7 @@ export function analyzeHand(state: TableState): ReviewCard {
       leak,
       villainId: opp?.id,
       viewed: false,
+      streets: analyzeStreets(state),
     };
   }
 
@@ -190,6 +203,7 @@ export function analyzeHand(state: TableState): ReviewCard {
     leak,
     villainId: opp?.id,
     viewed: false,
+    streets: analyzeStreets(state),
     gtoLine: "GTO 기준: 밸런스 혼합. 블러프 빈도는 상대가 폴드하는 만큼만.",
     exploitLine: body,
   };
@@ -215,4 +229,49 @@ export function detectPatterns(reviews: ReviewCard[]): { tag: string; count: num
     .filter((x) => x.count >= 2)
     .sort((a, b) => b.loss - a.loss)
     .slice(0, 3);
+}
+
+const STREET_KO: Record<Street, string> = {
+  preflop: "프리플랍",
+  flop: "플랍",
+  turn: "턴",
+  river: "리버",
+};
+
+const BOARD_COUNT: Record<Street, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
+
+export function analyzeStreets(state: TableState): StreetReview[] {
+  const hero = state.players.find((p) => p.id === "hero");
+  if (!hero || !hero.hole) return [];
+  const out: StreetReview[] = [];
+  const order: Street[] = ["preflop", "flop", "turn", "river"];
+  for (const street of order) {
+    const acts = state.actionLog.filter((x) => x.street === street);
+    const mine = acts.filter((x) => x.actorId === "hero");
+    if (mine.length === 0) continue;
+    const shownBoard = state.board.slice(0, BOARD_COUNT[street]);
+    const read = shownBoard.length >= 3 ? readSpot(hero.hole, shownBoard) : null;
+    const potBb = chipsToBb(mine[0].potBefore);
+    const faced = acts.filter((x) => x.actorId !== "hero" && (x.type === "bet" || x.type === "raise" || x.type === "allin"));
+    const aggro = mine.some((x) => x.type === "bet" || x.type === "raise" || x.type === "allin");
+    const folded = mine.some((x) => x.type === "fold");
+    const called = mine.some((x) => x.type === "call");
+
+    let note = "무난";
+    if (folded) note = faced.length ? "상대 압박에 포기" : "액션 없이 포기";
+    else if (aggro) note = faced.length ? "되받아 압박" : "주도권 잡음";
+    else if (called) note = read && read.strength < 0.35 ? "약한 패로 콜" : "콜로 따라감";
+    else note = "체크로 넘김";
+
+    out.push({
+      street,
+      label: STREET_KO[street],
+      board: shownBoard.map((c) => RANK_GLYPH[c.rank] + SUIT_GLYPH[c.suit]).join(" ") || "—",
+      made: read ? madeLabel(read.made) : "프리플랍",
+      actions: mine.map((x) => describeAction(x)).join(" · "),
+      potBb: Math.round(potBb * 10) / 10,
+      note,
+    });
+  }
+  return out;
 }

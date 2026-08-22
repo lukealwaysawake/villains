@@ -354,6 +354,19 @@ export function TableScreen({
               <p>{badge.body}</p>
               <div className="conf">-{badge.totalLossBb}bb</div>
             </div>
+            {badge.streets && badge.streets.length > 0 && (
+              <div className="street-rows">
+                {badge.streets.map((s) => (
+                  <div key={s.street} className="street-row">
+                    <b>{s.label}</b>
+                    <span className="sr-board">{s.board}</span>
+                    <span className="sr-made">{s.made}</span>
+                    <span className="sr-act">{s.actions}</span>
+                    <span className="sr-note">{s.note}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {deep && (
               <>
                 <div className="card">
