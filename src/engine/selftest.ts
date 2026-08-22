@@ -10,6 +10,17 @@ import { scoreDecision } from "../review/ev";
 import { onHandEnd } from "../villains/runtime";
 import { createRuntime } from "../villains/types";
 import { decideVillain } from "../villains/policy";
+import {
+  buildGuidance,
+  confidenceFor,
+  createPatternAggregate,
+  habitStatus,
+  scoreFromLoss,
+  scoreLabel,
+  summarizeSession as summarizeCoachingSession,
+  updatePatternAggregate,
+  type DecisionAnalysis,
+} from "../review/learning";
 
 let assertions = 0;
 function assert(cond: boolean, msg: string) {
@@ -41,6 +52,66 @@ assert(categoryOrder.every((score, i) => i === 0 || score.value > categoryOrder[
 assert(positionFor(0, 0, 2) === "SB" && positionFor(0, 1, 2) === "BB", "heads-up positions should show SB and BB");
 assert(positionFor(2, 0, 4) === "BB", "four-handed policy should identify the big blind");
 assert(positionFor(2, 3, 4) === "SB", "four-handed policy should identify the small blind");
+
+const scoreCases: Array<[number, number]> = [
+  [0, 100], [0.1, 100], [0.3, 95], [0.5, 90], [0.75, 82.5], [1, 75],
+  [2, 62.5], [3, 50], [4.5, 35], [6, 20], [8, 10], [10, 0], [99, 0],
+];
+for (const [loss, expected] of scoreCases) {
+  assert(scoreFromLoss(loss) === expected, `loss ${loss}bb should map to ${expected}`);
+}
+assert(scoreLabel(95) === "최선" && scoreLabel(80) === "양호", "top coaching label boundaries");
+assert(scoreLabel(65) === "주의" && scoreLabel(40) === "실수" && scoreLabel(39.9) === "큰 실수", "lower coaching label boundaries");
+assert(confidenceFor({ samples: 23, gapBb: 3 }) === "low", "small EV samples should stay low confidence");
+assert(confidenceFor({ samples: 32, gapBb: 0.2, ruleAgreement: true }) === "low", "tiny EV gaps should stay low confidence");
+assert(confidenceFor({ samples: 24, gapBb: 0.3 }) === "medium", "adequate sample and gap should be medium confidence");
+assert(confidenceFor({ samples: 32, gapBb: 0.3, ruleAgreement: true }) === "high", "rule agreement should permit high confidence");
+
+let pattern = createPatternAggregate("river.value", "opponent_exploit");
+for (let i = 0; i < 3; i += 1) {
+  pattern = updatePatternAggregate(pattern, { eventId: `signal-${i}`, missed: i < 2, lossBb: i < 2 ? 0.8 : 0 });
+}
+assert(habitStatus(pattern) === "signal", "three opportunities and two misses should become a signal");
+const duplicatePattern = updatePatternAggregate(pattern, { eventId: "signal-0", missed: true, lossBb: 9 });
+assert(duplicatePattern === pattern && duplicatePattern.totalLossBb === 1.6, "duplicate pattern events must be idempotent");
+for (let i = 3; i < 8; i += 1) {
+  pattern = updatePatternAggregate(pattern, { eventId: `confirm-${i}`, missed: i === 3, lossBb: i === 3 ? 0.5 : 0 });
+}
+assert(habitStatus(pattern) === "confirmed", "approved opportunity, miss-rate, and loss thresholds should confirm a habit");
+for (let i = 0; i < 12; i += 1) {
+  pattern = updatePatternAggregate(pattern, { eventId: `resolved-${i}`, missed: i === 0, lossBb: i === 0 ? 0.1 : 0 });
+}
+assert(habitStatus(pattern) === "resolved", "one miss in the last twelve should resolve a confirmed habit");
+
+const guide = buildGuidance({ judgment: "리버 밸류 누락", evidence: "세 번 중 두 번 체크", condition: "같은 리버에서", action: "75% 팟 밸류", targetOpportunities: 10, targetMaxMisses: 2 });
+assert(guide.evidence.length === 1 && guide.measurementTarget.opportunities === 10, "coaching guidance should stay structured and measurable");
+
+function coachingDecision(id: string, potBb: number, fundamentalsScore: number, exploitScore?: number): DecisionAnalysis {
+  const played = { action: "check" as const, label: "체크", evBb: 0 };
+  return {
+    id,
+    samples: 32,
+    analysisBasis: exploitScore === undefined ? "ev" : "hybrid",
+    analysisUpdatedAt: 1,
+    context: { sessionId: "score-session", handNumber: 1, decisionIndex: Number(id), street: "river", potBb, effectiveStackBb: 100, toCallBb: 0 },
+    played,
+    baselineBest: played,
+    baselineLossBb: 0,
+    fundamentalsScore,
+    ...(exploitScore === undefined ? {} : { exploitBest: played, exploitLossBb: 0, exploitScore }),
+    overallScore: exploitScore === undefined ? fundamentalsScore : fundamentalsScore * 0.7 + exploitScore * 0.3,
+    confidence: "high",
+    patternId: `pattern-${id}`,
+    skill: "aggression",
+    guidance: guide,
+  };
+}
+const coachingSummary = summarizeCoachingSession([
+  coachingDecision("1", 1, 100),
+  coachingDecision("2", 16, 50, 100),
+]);
+assert(coachingSummary.fundamentalsScore === 60, "session score should weight a 16bb pot four times a 1bb pot");
+assert(coachingSummary.exploitScore === 100 && coachingSummary.overallScore === 72, "session total should apply 70/30 only on exploit opportunities");
 assert(formatSignedDollars(undefined) === "—", "unknown dollar conversion must not assume a one-dollar big blind");
 assert(formatSignedDollars(100) === "+$100", "known dollar values should render with a dollar sign");
 const mixedDollars = sumKnownDollars([
