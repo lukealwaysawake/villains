@@ -316,7 +316,6 @@ export function TableScreen({
                     {p.label}
                   </button>
                 ))}
-                <button className="on-allin" onClick={() => act("allin", legal.maxRaiseTo)}>올인</button>
               </div>
               <input type="range" min={legal.minBet} max={legal.maxRaiseTo} step={BB / 2} value={raiseTo} onChange={(e) => setRaiseTo(Number(e.target.value))} />
               <button className="btn launch wide" style={{ marginTop: 8 }} onClick={() => act(legal.callAmount > 0 ? "raise" : "bet", raiseTo)}>
