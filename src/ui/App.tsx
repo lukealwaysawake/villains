@@ -134,7 +134,7 @@ export function App() {
 function Onboarding({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState(0);
   return (
-    <section className="screen splash">
+    <section className="screen boot">
       <div className="splash-hero" aria-hidden="true" />
       <div className="splash-shade" aria-hidden="true" />
       <img className="splash-mark" src="/brand/mark.jpg" alt="" />

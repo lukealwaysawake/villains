@@ -1092,7 +1092,7 @@ input[type="range"] { width: 100%; accent-color: var(--gold); margin-top: 8px; }
 .nav button { min-height: 62px; }
 
 /* product splash */
-.screen.splash {
+.screen.boot {
   position: relative;
   overflow: hidden;
   justify-content: flex-end;
@@ -1110,7 +1110,7 @@ input[type="range"] { width: 100%; accent-color: var(--gold); margin-top: 8px; }
   background: linear-gradient(180deg, rgba(7,8,11,0.15) 0%, rgba(7,8,11,0.45) 42%, rgba(7,8,11,0.92) 78%, #07080b 100%);
   z-index: 0;
 }
-.screen.splash > *:not(.splash-hero):not(.splash-shade) { position: relative; z-index: 1; }
+.screen.boot > *:not(.splash-hero):not(.splash-shade) { position: relative; z-index: 1; }
 .splash-mark {
   width: 56px;
   height: 56px;
@@ -1119,8 +1119,8 @@ input[type="range"] { width: 100%; accent-color: var(--gold); margin-top: 8px; }
   box-shadow: 0 10px 28px rgba(0,0,0,0.45);
   margin-bottom: 14px;
 }
-.screen.splash .on-title { color: #f6f1e6; text-shadow: 0 8px 28px rgba(0,0,0,0.45); }
-.screen.splash .kicker { color: #d7d0c4; }
+.screen.boot .on-title { color: #f6f1e6; text-shadow: 0 8px 28px rgba(0,0,0,0.45); }
+.screen.boot .kicker { color: #d7d0c4; }
 .home-hero {
   position: relative;
   height: 148px;
