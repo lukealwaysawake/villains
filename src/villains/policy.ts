@@ -165,14 +165,21 @@ export function decideVillain(
   const act = (type: ActionType, raiseTo = 0): PolicyDecision => ({ type, raiseTo, delayMs, mixKey });
 
   if (street === "preflop") {
-    const openThresh = stats.pfr * POS_OPEN_MULT[pos] * POS_NORM * (0.88 + 0.12 * stats.positionAwareness) * 1.55;
-    const vpipThresh = stats.vpip * (0.75 + 0.35 * (1.15 - stats.positionAwareness * 0.15));
+    const posMul = POS_OPEN_MULT[pos] * POS_NORM;
+    const posWeight = 1 + (posMul - 1) * stats.positionAwareness;
+    const vpipThresh = stats.vpip * posWeight * 1.12;
+    const openThresh = Math.min(vpipThresh, stats.pfr * posWeight * 2.6);
+    // Passive types limp the tail of their range instead of raising it.
+    const passivity = 1 - Math.min(1, stats.pfr / Math.max(1, stats.vpip));
+    const limpThresh = passivity > 0.45 ? vpipThresh : 0;
     if (toCall === 0 || (toCall <= BB && raises === 0 && player.contributedStreet >= BB)) {
       if (pfPct <= openThresh && legal.canBet) {
         const frac = pos === "BTN" || pos === "CO" ? 2.3 : 2.5;
         return act("raise", sizingTo(state, seat, frac / 3));
       }
+      if (pfPct <= limpThresh && legal.canCall) return act("call");
       if (legal.canCheck) return act("check");
+      if (pfPct <= vpipThresh && legal.canCall && toCall <= BB) return act("call");
       return act("fold");
     }
 
@@ -201,10 +208,18 @@ export function decideVillain(
       if (madamBtn && rng.chance(0.65) && pfPct > 20) {
         return legal.canFold ? act("fold") : act("call");
       }
-      if (pfPct <= stats.threeBet && legal.canBet) return act("raise", sizingTo(state, seat, 0.95));
+      const threeBetRange = stats.threeBet * (1 + 0.5 * Math.max(0, stats.aggressionFactor - 2.4));
+      if (pfPct <= threeBetRange && legal.canBet) return act("raise", sizingTo(state, seat, 0.95));
       if (uncle && pfPct <= stats.vpip) return act("call");
-      if (pfPct <= vpipThresh) return act(stats.pfr < stats.vpip * 0.45 ? "call" : rng.chance(0.35) ? "call" : "fold");
-      if (pos === "BB" && pfPct <= vpipThresh * 1.15) return act("call");
+      if (pfPct <= vpipThresh) {
+        // Callers call, raisers mix in a squeeze.
+        if (passivity > 0.4) return act("call");
+        if (legal.canBet && pfPct <= threeBetRange * 1.8 && rng.chance(0.35 + 0.1 * Math.max(0, stats.aggressionFactor - 2.5))) {
+          return act("raise", sizingTo(state, seat, 0.95));
+        }
+        return act(rng.chance(0.55) ? "call" : "fold");
+      }
+      if (pos === "BB" && pfPct <= vpipThresh * 1.25) return act("call");
       return act("fold");
     }
 
@@ -235,6 +250,7 @@ export function decideVillain(
   const value = read.strength >= 0.6;
   const monster = read.strength >= 0.82;
   const air = read.strength <= 0.2;
+  const passivePost = stats.aggressionFactor < 1.5;
   const draw = read.flushDraw || read.oesd;
 
   if (toCall > 0) {
@@ -245,7 +261,7 @@ export function decideVillain(
       }
       return act("call");
     }
-    if (raises <= 1 && legal.canBet && stats.aggressionFactor >= 2.4 && read.strength >= 0.62 && rng.chance(Math.min(0.45, stats.aggressionFactor / 9))) {
+    if (!passivePost && raises <= 1 && legal.canBet && stats.aggressionFactor >= 2.4 && read.strength >= 0.62 && rng.chance(Math.min(0.45, stats.aggressionFactor / 9))) {
       return act("raise", sizingTo(state, seat, profileFrac(stats.betSizingProfile), kimOver));
     }
     if (read.strength >= calldown) return act("call");
@@ -266,7 +282,7 @@ export function decideVillain(
   const shouldCbet = wasAggressor || street === "flop";
   let wantBet = false;
   const aggBoost = Math.min(0.3, Math.max(0, (stats.aggressionFactor - 2) * 0.12));
-  if (monster || value) wantBet = rng.chance(Math.min(0.97, betF + 0.15 + aggBoost));
+  if (monster || value) wantBet = rng.chance(Math.min(0.97, betF * (passivePost ? 0.7 : 1) + 0.12 + aggBoost));
   else if (draw && street !== "river") wantBet = rng.chance(betF * 0.55);
   else if (air && street === "river") {
     let bluff = stats.riverBluffFreq / 100;
