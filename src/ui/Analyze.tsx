@@ -16,7 +16,7 @@ export function Analyze({
   const sessions = profile.sessionHistory ?? [];
   const hands = profile.handLog ?? [];
   const habits = [...(profile.habits ?? [])].sort((a, b) => b.totalLossBb - a.totalLossBb || b.count - a.count);
-  const life = sessions.reduce((s, x) => s + x.bbDelta, 0);
+  const life = sessions.reduce((sum, item) => sum + item.bbDelta * (item.bigBlindDollars ?? 1), 0);
   const last = profile.lastSession;
   const hs = last?.heroStats;
   const vpip = hs && hs.hands ? Math.round((hs.vpip / hs.hands) * 100) : 0;
@@ -32,7 +32,7 @@ export function Analyze({
       <div className="grid3">
         <div className="card"><div className="muted">핸드</div><b>{profile.lifetimeHands}</b></div>
         <div className="card"><div className="muted">세션</div><b>{sessions.length}</b></div>
-        <div className="card"><div className="muted">손익</div><b className={life >= 0 ? "good" : "bad"}>{signedBb(life)}</b></div>
+        <div className="card"><div className="muted">손익</div><b className={life >= 0 ? "good" : "bad"}>{signedBb(life, 1)}</b></div>
       </div>
       <Segmented
         label="기록 보기"
@@ -93,7 +93,7 @@ export function Analyze({
                   {h.leak ? " · " + h.leak : ""}
                 </div>
               </div>
-              <span className={h.heroDelta >= 0 ? "good" : "bad"}>{signedBb(h.heroDelta)}</span>
+              <span className={h.heroDelta >= 0 ? "good" : "bad"}>{signedBb(h.heroDelta, h.bigBlindDollars)}</span>
             </div>
           ))}
         </div>
@@ -112,7 +112,7 @@ export function Analyze({
                   {s.villainIds.map((id) => VILLAIN_BY_ID[id]?.name ?? id).join(" · ")}
                 </div>
               </div>
-              <span className={s.bbDelta >= 0 ? "good" : "bad"}>{signedBb(s.bbDelta)}</span>
+              <span className={s.bbDelta >= 0 ? "good" : "bad"}>{signedBb(s.bbDelta, s.bigBlindDollars)}</span>
             </div>
           ))}
         </div>

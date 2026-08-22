@@ -7,7 +7,7 @@
     "dev": "vite --host --port 5173",
     "build": "vite build",
     "preview": "vite preview --host --port 4173",
-    "test": "node --experimental-strip-types src/engine/selftest.ts"
+    "test": "rm -rf /tmp/villains-selftest && tsc --outDir /tmp/villains-selftest --module commonjs --moduleResolution node --target ES2022 --esModuleInterop --skipLibCheck src/engine/selftest.ts && node /tmp/villains-selftest/engine/selftest.js"
   },
   "dependencies": {
     "react": "^19.1.1",

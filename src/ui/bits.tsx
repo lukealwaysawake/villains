@@ -31,11 +31,33 @@ export function bb(chips: number): string {
   return "$" + dollarsFromChips(chips);
 }
 
-/** Session and review values are stored in big blinds. */
-export function signedBb(value: number): string {
-  const rounded = Math.round(value * 10) / 10;
-  const body = Math.abs(rounded) % 1 === 0 ? Math.abs(rounded).toFixed(0) : Math.abs(rounded).toFixed(1);
-  return `${rounded > 0 ? "+" : rounded < 0 ? "−" : ""}$${body}`;
+/** Session and review values are stored in big blinds. Convert only when the room's dollar BB is known. */
+export function signedBb(value: number, bigBlindDollars?: number): string {
+  const converted = bigBlindDollars === undefined ? value : value * bigBlindDollars;
+  const rounded = Math.round(converted * 100) / 100;
+  const body = Math.abs(rounded) % 1 === 0
+    ? Math.abs(rounded).toFixed(0)
+    : Math.abs(rounded).toFixed(2).replace(/0$/, "");
+  const sign = rounded > 0 ? "+" : rounded < 0 ? "−" : "";
+  return `${sign}$${body}`;
+}
+
+/** Convert bb-based help copy using the selected room's dollar big blind. */
+export function bbCopyToDollars(text: string, bigBlindDollars: number): string {
+  return text.replace(/([+−-]?)(\d+(?:\.\d+)?)bb/g, (_match, sign: string, amount: string) => {
+    const dollars = Number(amount) * bigBlindDollars;
+    const body = dollars % 1 === 0 ? dollars.toFixed(0) : dollars.toFixed(2).replace(/0$/, "");
+    return `${sign === "-" ? "−" : sign}$${body}`;
+  });
+}
+
+/** Convert a bb/100 target string using the selected room's dollar big blind. */
+export function bb100CopyToDollars(text: string, bigBlindDollars: number): string {
+  return text.replace(/([+−-]?)(\d+(?:\.\d+)?)/g, (_match, sign: string, amount: string) => {
+    const dollars = Number(amount) * bigBlindDollars;
+    const body = dollars % 1 === 0 ? dollars.toFixed(0) : dollars.toFixed(2).replace(/0$/, "");
+    return `${sign === "-" ? "−" : sign}$${body}`;
+  });
 }
 
 export interface SegmentOption<T extends string | number> {

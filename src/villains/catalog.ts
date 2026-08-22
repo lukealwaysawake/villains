@@ -33,9 +33,9 @@ export const VILLAINS: VillainDef[] = [
       wtsd: 27, aggressionFactor: 2.8, positionAwareness: 1, showdownCalldownThreshold: 0.52,
     }),
     leaks: [{
-      type: "STACK_MISREAD", magnitude: 0.04, condition: "$40 이하",
+      type: "STACK_MISREAD", magnitude: 0.04, condition: "40bb 이하",
       label: "숏스택 미세 오차",
-      discoveryHint: "$40 아래에서는 사이징이 한 박자 커집니다. 그 외엔 구멍 없습니다.",
+      discoveryHint: "40bb 아래에서는 사이징이 한 박자 커집니다. 그 외엔 구멍 없습니다.",
       expectedEdge: 0,
     }],
     emotionProfile: { sensitivity: 0, tiltThreshold: 999, tiltDuration: 0, scaredThreshold: 999, confidentThreshold: 999 },
@@ -52,7 +52,7 @@ export const VILLAINS: VillainDef[] = [
     unlock: "Tier A 3명 상대 누적 승률 플러스",
     lesson: "착취할 수 없는 상대와는 큰 팟을 만들지 않는다.",
     exploit: "본전 근처로 버티기. 돈을 뽑으려 하면 진다.",
-    expectedBb100: "−$1 ~ $0",
+    expectedBb100: "−1 ~ 0",
   },
   {
     id: "greatwhite",
@@ -93,7 +93,7 @@ export const VILLAINS: VillainDef[] = [
     unlock: "교수 상대 1,000핸드",
     lesson: "미세한 블러프 과다를 한 단계만 벌린다.",
     exploit: "리버 콜다운을 딱 한 단계 넓히기. 두 단계는 학살.",
-    expectedBb100: "+$2 ~ +$4",
+    expectedBb100: "+2 ~ +4",
   },
   {
     id: "songtag",
@@ -128,7 +128,7 @@ export const VILLAINS: VillainDef[] = [
     unlock: "중급 클리어",
     lesson: "정직한 3벳 팟은 라이트 4벳으로 연다.",
     exploit: "포지션에서 라이트 4벳. 송실장이 밀면 진짜다.",
-    expectedBb100: "+$8",
+    expectedBb100: "+8",
   },
   {
     id: "irongate",
@@ -170,7 +170,7 @@ export const VILLAINS: VillainDef[] = [
     unlock: "중급 클리어",
     lesson: "상대 스탯은 포지션별로 본다.",
     exploit: "블라인드 디펜스 후 플랍 c-bet은 거의 공짜. 버튼 오픈은 존중.",
-    expectedBb100: "+$11",
+    expectedBb100: "+11",
   },
   {
     id: "ceokim",
@@ -209,7 +209,7 @@ export const VILLAINS: VillainDef[] = [
     unlock: "중급 클리어",
     lesson: "사이징이 정보를 샌다. 그리고 착취하면 카운터가 온다.",
     exploit: "리버 오버벳은 마진 핸드 전부 폴드. 팟 이하는 정상 콜.",
-    expectedBb100: "+$9 (적응 시 +$6)",
+    expectedBb100: "+9 (적응 시 +6)",
   },
   {
     id: "nitlee",
@@ -244,7 +244,7 @@ export const VILLAINS: VillainDef[] = [
     unlock: "즉시",
     lesson: "닛의 오픈은 접고, 블라인드는 훔친다.",
     exploit: "3벳으로 팟을 가져가라. 되받으면 무조건 진짜다.",
-    expectedBb100: "+$16",
+    expectedBb100: "+16",
   },
   {
     id: "stationpark",
@@ -281,7 +281,7 @@ export const VILLAINS: VillainDef[] = [
     unlock: "즉시",
     lesson: "안 접는 상대에게 블러프는 기부다.",
     exploit: "블러프 금지. 세컨페어로도 크게 밸류.",
-    expectedBb100: "+$22",
+    expectedBb100: "+22",
   },
   {
     id: "madamj",
@@ -326,7 +326,7 @@ export const VILLAINS: VillainDef[] = [
     unlock: "기초 클리어",
     lesson: "포지션이 사람을 바꾼다.",
     exploit: "블라인드에서 버튼 오픈에 라이트 3벳.",
-    expectedBb100: "+$13",
+    expectedBb100: "+13",
   },
   {
     id: "bulldozer",
@@ -363,7 +363,7 @@ export const VILLAINS: VillainDef[] = [
     unlock: "200핸드",
     lesson: "스트리트 간 공격성 단절을 읽는다.",
     exploit: "플랍은 콜, 턴에서 뺏어와라.",
-    expectedBb100: "+$19",
+    expectedBb100: "+19",
   },
   {
     id: "foldjeong",
@@ -397,7 +397,7 @@ export const VILLAINS: VillainDef[] = [
     unlock: "200핸드",
     lesson: "상대에 따라 사이징 원칙이 뒤집힌다.",
     exploit: "블러프는 크게, 밸류는 작게.",
-    expectedBb100: "+$14",
+    expectedBb100: "+14",
   },
   {
     id: "uncleho",
@@ -435,7 +435,7 @@ export const VILLAINS: VillainDef[] = [
     unlock: "즉시",
     lesson: "림퍼는 아이솔레이션 후 c-bet.",
     exploit: "림프 뒤에 레이즈하고 플랍을 베팅하라.",
-    expectedBb100: "+$20",
+    expectedBb100: "+20",
   },
   {
     id: "tourneymin",
@@ -455,7 +455,7 @@ export const VILLAINS: VillainDef[] = [
     leaks: [{
       type: "STACK_MISREAD", magnitude: 0.4,
       label: "탑페어 스택오프",
-      discoveryHint: "$100를 $40처럼 칩니다. 탑페어면 스택을 넣습니다.",
+      discoveryHint: "100bb를 40bb처럼 칩니다. 탑페어면 스택을 넣습니다.",
       expectedEdge: 12,
     }],
     emotionProfile: { sensitivity: 0.7, tiltThreshold: 40, tiltDuration: 10, scaredThreshold: 45, confidentThreshold: 50 },
@@ -470,7 +470,7 @@ export const VILLAINS: VillainDef[] = [
     unlock: "기초 클리어",
     lesson: "SPR과 커밋 임계값.",
     exploit: "강한 핸드로 스택을 노려라. 마진 핸드로 큰 팟을 만들지 마라.",
-    expectedBb100: "+$12",
+    expectedBb100: "+12",
   },
   {
     id: "vendetta",
@@ -507,7 +507,7 @@ export const VILLAINS: VillainDef[] = [
     unlock: "기초 클리어",
     lesson: "상대의 심리 상태가 스탯보다 중요할 때가 있다.",
     exploit: "큰 팟을 이긴 뒤 블러프를 보여주면 이후 30핸드는 ATM.",
-    expectedBb100: "+$17",
+    expectedBb100: "+17",
   },
   {
     id: "slowroll",
@@ -543,7 +543,7 @@ export const VILLAINS: VillainDef[] = [
     unlock: "기초 클리어",
     lesson: "숫자 밖의 정보, 그리고 78%짜리 정보를 어떻게 쓸 것인가.",
     exploit: "빠른 액션은 강함, 느린 액션은 블러프. 맹신하면 역텔에 당한다.",
-    expectedBb100: "+$15",
+    expectedBb100: "+15",
   },
   {
     id: "weekend",
@@ -561,9 +561,9 @@ export const VILLAINS: VillainDef[] = [
       wtsd: 21, aggressionFactor: 1.9, positionAwareness: 0.6, showdownCalldownThreshold: 0.58,
     }),
     leaks: [{
-      type: "STACK_MISREAD", magnitude: 0.35, condition: "팟 $60+",
+      type: "STACK_MISREAD", magnitude: 0.35, condition: "팟 60bb+",
       label: "큰 팟에서 위축",
-      discoveryHint: "팟이 $60를 넘는 순간 폴드 빈도가 크게 올라갑니다.",
+      discoveryHint: "팟이 60bb를 넘는 순간 폴드 빈도가 크게 올라갑니다.",
       expectedEdge: 16,
     }],
     emotionProfile: { sensitivity: 1.2, tiltThreshold: 40, tiltDuration: 8, scaredThreshold: 25, confidentThreshold: 90 },
@@ -577,8 +577,8 @@ export const VILLAINS: VillainDef[] = [
     },
     unlock: "200핸드",
     lesson: "팟 사이즈 자체가 상대를 바꾸는 레버다.",
-    exploit: "사이징을 키워 팟을 $60 위로 올리면 그 다음은 폴드.",
-    expectedBb100: "+$16",
+    exploit: "사이징을 키워 팟을 60bb 위로 올리면 그 다음은 폴드.",
+    expectedBb100: "+16",
   },
 ];
 

@@ -28,6 +28,7 @@ export interface ReviewCard {
   leak?: string;
   villainId?: string;
   viewed: boolean;
+  bigBlindDollars?: number;
   streets?: StreetReview[];
   gtoLine?: string;
   exploitLine?: string;
@@ -41,6 +42,12 @@ function worstVillain(state: TableState): string | undefined {
 
 function heroDecisions(state: TableState) {
   return state.actionLog.filter((a) => a.actorId === "hero");
+}
+
+function signedDollarsFromChips(chips: number): string {
+  const dollars = Math.round((Math.abs(chips) / 100) * 100) / 100;
+  const body = dollars % 1 === 0 ? dollars.toFixed(0) : dollars.toFixed(2).replace(/0$/, "");
+  return `${chips > 0 ? "+" : chips < 0 ? "−" : ""}$${body}`;
 }
 
 export function analyzeHand(state: TableState): ReviewCard {
@@ -58,7 +65,7 @@ export function analyzeHand(state: TableState): ReviewCard {
   let body = "큰 실수는 안 보였습니다.";
   let alt = "다음 핸드에서 상대 HUD만 한 번 더 보세요.";
   let statLabel = "결과";
-  let statValue = `${resultBb >= 0 ? "+$" : "−$"}${Math.abs(resultBb)}`;
+  let statValue = signedDollarsFromChips(state.result?.heroDelta ?? 0);
   let leak: string | undefined;
 
   const riverBet = acts.find((a) => a.street === "river" && (a.type === "bet" || a.type === "raise"));
@@ -132,8 +139,9 @@ export function analyzeHand(state: TableState): ReviewCard {
   if (opp?.id === "weekend" && last?.type === "check" && street === "turn" && last.potBefore >= 40 * state.bb) {
     loss = Math.max(loss, 3.5);
     headline = "큰 팟에서 주말전사를 놓침";
-    body = "팟이 $60를 넘으면 주말전사의 폴드 빈도가 급등합니다. 사이징을 키우세요.";
-    statLabel = "$60+ 폴드 가산";
+    const scarePot = signedDollarsFromChips(60 * state.bb).replace("+", "");
+    body = `팟이 ${scarePot}를 넘으면 주말전사의 폴드 빈도가 급등합니다. 사이징을 키우세요.`;
+    statLabel = `${scarePot}+ 폴드 가산`;
     statValue = "+35%p";
     leak = "STACK_MISREAD";
   }
@@ -186,6 +194,7 @@ export function analyzeHand(state: TableState): ReviewCard {
       leak,
       villainId: opp?.id,
       viewed: false,
+      bigBlindDollars: state.bb / 100,
       streets: analyzeStreets(state),
     };
   }
@@ -205,6 +214,7 @@ export function analyzeHand(state: TableState): ReviewCard {
     leak,
     villainId: opp?.id,
     viewed: false,
+    bigBlindDollars: state.bb / 100,
     streets: analyzeStreets(state),
     gtoLine: "GTO 기준: 밸런스 혼합. 블러프 빈도는 상대가 폴드하는 만큼만.",
     exploitLine: body,

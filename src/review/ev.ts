@@ -20,6 +20,12 @@ export interface DecisionEv {
   lossBb: number;
 }
 
+function dollarsFromChips(chips: number): string {
+  const dollars = Math.round((chips / 100) * 100) / 100;
+  const body = dollars % 1 === 0 ? dollars.toFixed(0) : dollars.toFixed(2).replace(/0$/, "");
+  return `$${body}`;
+}
+
 function heroContinue(state: TableState): { type: ActionType; raiseTo: number } {
   const seat = state.toAct!;
   const p = state.players[seat];
@@ -75,7 +81,7 @@ export function candidateList(state: TableState): { type: ActionType; raiseTo: n
   const out: { type: ActionType; raiseTo: number; label: string }[] = [];
   if (legal.canFold) out.push({ type: "fold", raiseTo: 0, label: "폴드" });
   if (legal.canCheck) out.push({ type: "check", raiseTo: 0, label: "체크" });
-  if (legal.canCall) out.push({ type: "call", raiseTo: 0, label: `콜 $${Math.round((legal.callAmount / state.bb) * 10) / 10}` });
+  if (legal.canCall) out.push({ type: "call", raiseTo: 0, label: `콜 ${dollarsFromChips(legal.callAmount)}` });
   if (legal.canBet) {
     const pot = Math.max(legal.pot, state.bb);
     const sizes = [
@@ -87,7 +93,7 @@ export function candidateList(state: TableState): { type: ActionType; raiseTo: n
     for (const s of sizes) {
       if (seen.has(s.to)) continue;
       seen.add(s.to);
-      out.push({ type: legal.callAmount > 0 ? "raise" : "bet", raiseTo: s.to, label: `${s.label} $${Math.round((s.to / state.bb) * 10) / 10}` });
+      out.push({ type: legal.callAmount > 0 ? "raise" : "bet", raiseTo: s.to, label: `${s.label} ${dollarsFromChips(s.to)}` });
     }
   }
   return out;

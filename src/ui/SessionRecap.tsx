@@ -26,7 +26,7 @@ export function SessionRecap({
   return (
     <section className="screen recap no-nav">
       <div className="eyebrow">SESSION RECAP</div>
-      <h1 className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta)}</h1>
+      <h1 className={session.bbDelta >= 0 ? "good" : "bad"}>{signedBb(session.bbDelta, session.room?.bb)}</h1>
       <p className="kicker">
         {session.handsPlayed}핸드 · {session.room ? `$${session.room.sb}/$${session.room.bb}` : "캐시"} · {session.villainIds.map((id) => VILLAIN_BY_ID[id]?.name).join(" · ")}
       </p>
@@ -48,7 +48,7 @@ export function SessionRecap({
           <div key={p.tag} className="task-row">
             <div style={{ flex: 1 }}>
               <b>{p.tag}</b>
-              <div className="kicker">{p.count}회 · -${p.loss.toFixed(1)}</div>
+              <div className="kicker">{p.count}회 · {signedBb(-p.loss, session.room?.bb)}</div>
             </div>
           </div>
         ))}
@@ -62,7 +62,7 @@ export function SessionRecap({
             <summary>
               <i className={`dot ${r.severity}`} />
               <span className="hb-title">#{r.handNumber} {r.headline}</span>
-              <span className={r.totalLossBb > 0 ? "bad" : "muted"}>{r.totalLossBb > 0 ? `-$${r.totalLossBb}` : "OK"}</span>
+              <span className={r.totalLossBb > 0 ? "bad" : "muted"}>{r.totalLossBb > 0 ? signedBb(-r.totalLossBb, session.room?.bb) : "OK"}</span>
             </summary>
             <p className="kicker">{r.body}</p>
             {r.streets && r.streets.length > 0 && (
@@ -88,7 +88,7 @@ export function SessionRecap({
           {kibos.map((h) => (
             <div key={String(h.at) + h.handNumber} className="task-row">
               <div style={{ flex: 1 }}><b>#{h.handNumber} {h.headline}</b></div>
-              <span className={h.heroDelta >= 0 ? "good" : "bad"}>{signedBb(h.heroDelta)}</span>
+              <span className={h.heroDelta >= 0 ? "good" : "bad"}>{signedBb(h.heroDelta, session.room?.bb)}</span>
             </div>
           ))}
         </div>

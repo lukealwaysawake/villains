@@ -1,11 +1,12 @@
 import { VILLAIN_BY_ID } from "../villains/catalog";
 import type { Profile, Screen } from "../state/store";
+import { signedBb } from "./bits";
 
 export function History({ profile, go }: { profile: Profile; go: (s: Screen) => void }) {
   const sessions = profile.sessionHistory ?? [];
   const hands = profile.handLog ?? [];
   const habits = [...(profile.habits ?? [])].sort((a, b) => b.totalLossBb - a.totalLossBb);
-  const lifeBb = sessions.reduce((s, x) => s + x.bbDelta, 0);
+  const lifeDollars = sessions.reduce((sum, item) => sum + item.bbDelta * (item.bigBlindDollars ?? 1), 0);
   return (
     <section className="screen">
       <div className="topbar">
@@ -16,7 +17,7 @@ export function History({ profile, go }: { profile: Profile; go: (s: Screen) => 
       <div className="grid3">
         <div className="card"><div className="muted">누적 핸드</div><b>{profile.lifetimeHands}</b></div>
         <div className="card"><div className="muted">세션</div><b>{sessions.length}</b></div>
-        <div className="card"><div className="muted">세션 합</div><b className={lifeBb >= 0 ? "good" : "bad"}>{lifeBb >= 0 ? "+$" : "−$"}{Math.abs(lifeBb).toFixed(1)}</b></div>
+        <div className="card"><div className="muted">세션 합</div><b className={lifeDollars >= 0 ? "good" : "bad"}>{signedBb(lifeDollars, 1)}</b></div>
       </div>
       <div className="insight">
         <div className="row"><span className="idx">00</span><b>내 패턴 분석</b></div>
@@ -27,7 +28,7 @@ export function History({ profile, go }: { profile: Profile; go: (s: Screen) => 
             <div style={{ flex: 1 }}>
               <b>{h.tag}</b>
               <div className="kicker">
-                {h.count}회 · 손실 -${h.totalLossBb.toFixed(1)}
+                {h.count}회 · 손실 {signedBb(-h.totalLossBb)}
                 {h.villains.length ? " · " + h.villains.map((id) => VILLAIN_BY_ID[id]?.name ?? id).join(", ") : ""}
               </div>
               {h.examples[0] && <div className="kicker">{h.examples[0].body}</div>}
@@ -47,7 +48,7 @@ export function History({ profile, go }: { profile: Profile; go: (s: Screen) => 
                 {s.handsPlayed}핸드 · {s.villainIds.map((id) => VILLAIN_BY_ID[id]?.name ?? id).join(" · ")}
               </div>
             </div>
-            <span className={s.bbDelta >= 0 ? "good" : "bad"}>{s.bbDelta >= 0 ? "+$" : "−$"}{Math.abs(s.bbDelta).toFixed(1)}</span>
+            <span className={s.bbDelta >= 0 ? "good" : "bad"}>{signedBb(s.bbDelta, s.bigBlindDollars)}</span>
           </div>
         ))}
       </div>
@@ -60,7 +61,7 @@ export function History({ profile, go }: { profile: Profile; go: (s: Screen) => 
               <b>#{h.handNumber} {h.headline}</b>
               <div className="kicker">{new Date(h.at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })}</div>
             </div>
-            <span className={h.heroDelta >= 0 ? "good" : "bad"}>{h.heroDelta >= 0 ? "+" : ""}{h.heroDelta.toFixed(1)}</span>
+            <span className={h.heroDelta >= 0 ? "good" : "bad"}>{signedBb(h.heroDelta, h.bigBlindDollars)}</span>
           </div>
         ))}
       </div>

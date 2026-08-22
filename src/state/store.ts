@@ -94,6 +94,7 @@ export interface Session {
   room?: RoomConfig;
   buyInChips: number;
   heroBuyIns: number;
+  buyIns?: Record<string, number>;
 }
 
 export interface Profile {
@@ -121,6 +122,7 @@ export interface SessionSummary {
   villainIds: string[];
   handsPlayed: number;
   bbDelta: number;
+  bigBlindDollars?: number;
   vpip: number;
   pfr: number;
 }
@@ -130,6 +132,7 @@ export interface HandLog {
   sessionId: string;
   handNumber: number;
   heroDelta: number;
+  bigBlindDollars?: number;
   severity: string;
   headline: string;
   leak?: string;
@@ -276,24 +279,81 @@ export function createSession(villainIds: string[], presetId?: string, opts?: { 
     room,
     buyInChips,
     heroBuyIns: 1,
+    buyIns: Object.fromEntries(ids.map((id) => [id, 1])),
   };
 }
 
-export function dealNext(session: Session): TableState {
-  session.handNumber += 1;
-  session.button = (session.button + 1) % (session.villainIds.length + 1);
-  const ids = ["hero", ...session.villainIds];
-  const players = createFreshPlayers(ids).map((p) => ({ ...p, stack: session.stacks[p.id] ?? p.stack }));
+function seatedIds(session: Session): string[] {
+  return ["hero", ...session.villainIds];
+}
+
+function ensureBuyIns(session: Session): Record<string, number> {
+  const current = session.buyIns ?? {};
+  for (const id of seatedIds(session)) {
+    if (current[id] === undefined) current[id] = id === "hero" ? (session.heroBuyIns ?? 1) : 1;
+  }
+  session.buyIns = current;
+  session.heroBuyIns = current.hero ?? 1;
+  return current;
+}
+
+function canPlayerContinue(session: Session, id: string): boolean {
   const room = session.room;
+  const bbChip = Math.round((room?.bb ?? 1) * 100);
+  if ((session.stacks[id] ?? 0) >= bbChip) return true;
+  if (room?.autoRebuy === false) return false;
+  const limit = room?.buyInLimit ?? 0;
+  const used = ensureBuyIns(session)[id] ?? 1;
+  return limit === 0 || used < limit;
+}
+
+export function continuablePlayerIds(session: Session): string[] {
+  return seatedIds(session).filter((id) => canPlayerContinue(session, id));
+}
+
+export function canContinueSession(session: Session): { ok: boolean; reason: string } {
+  const bbChip = Math.round((session.room?.bb ?? 1) * 100);
+  const funded = seatedIds(session).filter((id) => (session.stacks[id] ?? 0) >= bbChip);
+  if (funded.length === 0) return { ok: false, reason: "모든 플레이어가 탈락했습니다." };
+  const ids = continuablePlayerIds(session);
+  if (!ids.includes("hero")) return { ok: false, reason: "바이인이 소진됐습니다." };
+  if (ids.length < 2) return { ok: false, reason: "상대가 모두 탈락했습니다." };
+  return { ok: true, reason: "" };
+}
+
+export function dealNext(session: Session): TableState {
+  const continuation = canContinueSession(session);
+  if (!continuation.ok) throw new Error(continuation.reason);
+
+  const room = session.room;
+  const buyIn = session.buyInChips ?? Math.round((room?.startStack ?? 100) * 100);
+  const bbChip = Math.round((room?.bb ?? 1) * 100);
+  const usage = ensureBuyIns(session);
+  const ids = continuablePlayerIds(session);
+  const players = createFreshPlayers(ids, buyIn).map((player) => {
+    let stack = session.stacks[player.id] ?? buyIn;
+    if (stack < bbChip) {
+      stack = buyIn;
+      usage[player.id] = (usage[player.id] ?? 1) + 1;
+      session.stacks[player.id] = stack;
+    }
+    return { ...player, stack };
+  });
+
+  session.heroBuyIns = usage.hero ?? 1;
+  session.handNumber += 1;
+  if (session.handNumber > 1) session.button = (session.button + 1) % players.length;
+  else session.button %= players.length;
+
   return startHand({
     players,
     button: session.button,
     handNumber: session.handNumber,
     seed: session.seed,
-    buyIn: session.buyInChips,
-    autoRebuy: room?.autoRebuy !== false,
+    buyIn,
+    autoRebuy: false,
     sb: Math.round((room?.sb ?? 0.5) * 100),
-    bb: Math.round((room?.bb ?? 1) * 100),
+    bb: bbChip,
   });
 }
 
@@ -336,6 +396,7 @@ export function commitHand(profile: Profile, session: Session, state: TableState
       sessionId: session.id,
       handNumber: session.handNumber,
       heroDelta: delta,
+      bigBlindDollars: state.bb / 100,
       severity: review.severity,
       headline: review.headline,
       leak: review.leak,
@@ -347,7 +408,7 @@ export function commitHand(profile: Profile, session: Session, state: TableState
     profile.habits = recordHabit(profile.habits ?? [], review);
   }
 
-  for (const id of session.villainIds) {
+  for (const id of session.villainIds.filter((villainId) => state.players.some((player) => player.id === villainId))) {
     const m = profile.mastery[id] ?? emptyMastery();
     m.handsPlayed += 1;
     const hero = state.players.find((p) => p.id === "hero");
@@ -421,6 +482,7 @@ export function summarizeSession(session: Session): SessionSummary {
     villainIds: [...session.villainIds],
     handsPlayed: session.handsPlayed,
     bbDelta: session.bbDelta,
+    bigBlindDollars: session.room?.bb,
     vpip: hs.hands ? Math.round((hs.vpip / hs.hands) * 100) : 0,
     pfr: hs.hands ? Math.round((hs.pfr / hs.hands) * 100) : 0,
   };
@@ -528,9 +590,7 @@ export function rememberRoom(profile: Profile, room: RoomConfig, villainIds: str
   return profile;
 }
 
-/** A session can resume only while its table is mid-hand. */
+/** Keep completed live hands resumable until their mandatory review flow is finished. */
 export function canResume(session: Session | null | undefined): boolean {
-  if (!session) return false;
-  if (!session.liveTable) return false;
-  return session.liveTable.street !== "complete" || session.handsPlayed > 0;
+  return !!session?.liveTable;
 }

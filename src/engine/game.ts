@@ -69,9 +69,16 @@ export function streetPot(state: TableState): number {
 }
 
 export function positionFor(button: number, seat: number, seats = 6): Position {
-  const order: Position[] = ["BTN", "SB", "BB", "UTG", "MP", "CO"];
+  const orders: Record<number, Position[]> = {
+    2: ["SB", "BB"],
+    3: ["BTN", "SB", "BB"],
+    4: ["BTN", "SB", "BB", "CO"],
+    5: ["BTN", "SB", "BB", "UTG", "CO"],
+    6: ["BTN", "SB", "BB", "UTG", "MP", "CO"],
+  };
+  const order = orders[seats] ?? orders[6];
   const offset = (seat - button + seats) % seats;
-  return order[offset];
+  return order[offset] ?? "BTN";
 }
 
 export function positionsMap(button: number, seats = 6): Record<number, Position> {
@@ -133,19 +140,19 @@ export function startHand(args: {
 }): TableState {
   const rng = new Rng(`${args.seed}:h${args.handNumber}`);
   const deck = shuffleDeck(rng);
+  const small = args.sb ?? SB;
+  const big = args.bb ?? BB;
+  const buyIn = args.buyIn ?? START_STACK;
   const players = args.players.map((p) => ({
     ...p,
     hole: null as [Card, Card] | null,
-    folded: p.stack <= 0,
+    folded: p.stack < big,
     allIn: false,
     contributedStreet: 0,
     contributedHand: 0,
     actedStreet: false,
     stack: p.stack,
   }));
-  const small = args.sb ?? SB;
-  const big = args.bb ?? BB;
-  const buyIn = args.buyIn ?? START_STACK;
   const autoRebuy = args.autoRebuy !== false;
   for (const p of players) {
     if (autoRebuy && p.stack < big) {
@@ -179,6 +186,16 @@ export function startHand(args: {
     p.hole = [state.deck.pop()!, state.deck.pop()!];
   }
 
+  const liveBeforeBlinds = livePlayers(state);
+  if (liveBeforeBlinds.length === 0) {
+    finishEmpty(state);
+    return state;
+  }
+  if (liveBeforeBlinds.length === 1) {
+    finishUncontested(state);
+    return state;
+  }
+
   const n = seatCount(state);
   if (n === 2) {
     post(state, state.button, small);
@@ -196,7 +213,13 @@ export function startHand(args: {
     state.toAct = firstLiveFrom(state, utg);
   }
   state.playersToAct = actorsLeft(state).length;
-  if (livePlayers(state).length < 2) finishUncontested(state);
+  const live = livePlayers(state);
+  if (live.length === 0) finishEmpty(state);
+  else if (live.length === 1) finishUncontested(state);
+  else if (actorsLeft(state).length === 0) {
+    runout(state);
+    showdown(state);
+  }
   return state;
 }
 
@@ -213,7 +236,7 @@ export function legalActions(state: TableState, seat: number): LegalActions {
   const canOption = toCall === 0 && p.stack > 0 && state.currentBet > 0;
   const canRaise = toCall > 0 && p.stack > toCall;
   return {
-    canFold: !p.folded && toCall > 0,
+    canFold: !p.folded && !p.allIn && toCall > 0,
     canCheck,
     canCall,
     callAmount: Math.min(toCall, p.stack),
@@ -232,8 +255,10 @@ function resetStreetFlags(state: TableState, closer: number | null): void {
 }
 
 function advanceOrClose(state: TableState): void {
-  if (livePlayers(state).length === 1) {
-    finishUncontested(state);
+  const live = livePlayers(state);
+  if (live.length <= 1) {
+    if (live.length === 1) finishUncontested(state);
+    else finishEmpty(state);
     return;
   }
   if (actorsLeft(state).length === 0) {
@@ -338,6 +363,14 @@ export function applyAction(
   return next;
 }
 
+/** Resume a stalled hand without recording a fake player action. */
+export function continueHand(state: TableState): TableState {
+  const next = cloneState(state);
+  if (next.street === "complete" || next.street === "showdown") return next;
+  advanceOrClose(next);
+  return next;
+}
+
 function burnAndDeal(state: TableState, n: number): void {
   state.deck.pop();
   for (let i = 0; i < n; i++) state.board.push(state.deck.pop()!);
@@ -403,8 +436,26 @@ function buildPots(state: TableState): Pot[] {
   return pots.length ? pots : [{ amount: 0, eligibleSeats: livePlayers(state).map((p) => p.seat) }];
 }
 
+function finishEmpty(state: TableState): void {
+  const pots = buildPots(state);
+  const deltas = Object.fromEntries(state.players.map((p) => [p.id, -p.contributedHand]));
+  state.pots = pots;
+  state.street = "complete";
+  state.toAct = null;
+  state.result = {
+    winnersByPot: [],
+    shown: {},
+    heroDelta: deltas.hero ?? 0,
+    deltas,
+  };
+}
+
 function finishUncontested(state: TableState): void {
   const winner = livePlayers(state)[0];
+  if (!winner) {
+    finishEmpty(state);
+    return;
+  }
   const pots = buildPots(state);
   const deltas: Record<string, number> = {};
   for (const p of state.players) deltas[p.id] = -p.contributedHand;

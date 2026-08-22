@@ -20,7 +20,7 @@ import {
 } from "../state/store";
 import { verifyCommit } from "../engine/fairness";
 import { roundRobin, behaviorProbe, type BehaviorRow } from "../engine/sim";
-import { Avatar, Nav, PageHeader, PlayingCard, ChipStack, Segmented, signedBb } from "./bits";
+import { Avatar, Nav, PageHeader, PlayingCard, ChipStack, Segmented, bb100CopyToDollars, bbCopyToDollars, signedBb } from "./bits";
 import { TableScreen } from "./TableScreen";
 import { Analyze } from "./Analyze";
 import { SessionRecap } from "./SessionRecap";
@@ -259,7 +259,7 @@ function Home({
             <p>${room.sb}/${room.bb} · {room.seats}인 · 바이인 ${room.startStack}</p>
           </div>
           {session && session.handsPlayed > 0 && (
-            <b className={`session-result ${session.bbDelta >= 0 ? "good" : "bad"}`}>{signedBb(session.bbDelta)}</b>
+            <b className={`session-result ${session.bbDelta >= 0 ? "good" : "bad"}`}>{signedBb(session.bbDelta, session.room?.bb)}</b>
           )}
         </div>
         <div className="lineup-row">
@@ -366,6 +366,7 @@ function Detail({
   const v = VILLAIN_BY_ID[id];
   const m = profile.mastery[id];
   const canHint = canShowHint(profile, id);
+  const dollarBb = profile.lastRoom?.room.bb ?? defaultRoom().bb;
   return (
     <section className="screen detail-screen no-nav">
       <PageHeader eyebrow="OPPONENT" title="상대 분석" onBack={back} titleAs="span" />
@@ -379,7 +380,7 @@ function Detail({
       </div>
       <div className="grid3">
         <div className="card"><div className="muted">핸드</div><b>{m.handsPlayed}</b></div>
-        <div className="card"><div className="muted">$/100핸드</div><b>{m.handsPlayed ? `$${((m.bb / m.handsPlayed) * 100).toFixed(1)}` : "—"}</b></div>
+        <div className="card"><div className="muted">$/100핸드</div><b>{m.handsPlayed ? signedBb((m.bb / m.handsPlayed) * 100, dollarBb) : "—"}</b></div>
         <div className="card"><div className="muted">숙련</div><b>{masteryPct(m)}%</b></div>
       </div>
       <div className="card">
@@ -393,8 +394,8 @@ function Detail({
         </div>
         {canHint ? (
           <>
-            <p className="kicker">{v.leaks[0].discoveryHint}</p>
-            <p className="kicker">{v.exploit}</p>
+            <p className="kicker">{bbCopyToDollars(v.leaks[0].discoveryHint, dollarBb)}</p>
+            <p className="kicker">{bbCopyToDollars(v.exploit, dollarBb)}</p>
             <button
               className="btn"
               style={{ marginTop: 8 }}
@@ -412,7 +413,7 @@ function Detail({
           <p className="kicker">이 빌런과 3세션 정도 친 뒤에 힌트가 열립니다.</p>
         )}
       </div>
-      <p className="kicker">완벽 대응 {v.expectedBb100}/100핸드</p>
+      <p className="kicker">완벽 대응 {bb100CopyToDollars(v.expectedBb100, dollarBb)}/100핸드</p>
       <button className="btn primary wide" onClick={duel}>이 빌런 포함해 앉기</button>
     </section>
   );
@@ -437,7 +438,7 @@ function Reviews({ profile, setProfile, go }: { profile: Profile; setProfile: (p
       <p className="kicker">{cur.body}</p>
       <div className="card">
         <div className="row"><span>{cur.statLabel}</span><b>{cur.statValue}</b></div>
-        <div className="row"><span>손실</span><b className="bad">−${cur.totalLossBb}</b></div>
+        <div className="row"><span>손실</span><b className="bad">{signedBb(-cur.totalLossBb, cur.bigBlindDollars)}</b></div>
       </div>
       <div className="button-pair review-page-actions">
         <button
