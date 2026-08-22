@@ -1,5 +1,5 @@
 import type { Card } from "../engine/types";
-import { RANK_GLYPH, SUIT_GLYPH, isRed } from "../engine/cards";
+import { FACE_GLYPH, SUIT_GLYPH, isRed } from "../engine/cards";
 
 const PIPS: Record<number, [number, number][]> = {
   14: [[50, 50]],
@@ -45,9 +45,9 @@ export function PlayingCard({
         <div className={`pcard-face pcard-front ${card && isRed(card) ? "red" : ""}`} style={{ color }}>
           {card && (
             <>
-              <b className="idx tl">{RANK_GLYPH[card.rank]}<em>{SUIT_GLYPH[card.suit]}</em></b>
-              <b className="idx br">{RANK_GLYPH[card.rank]}<em>{SUIT_GLYPH[card.suit]}</em></b>
-              <div className="court">{RANK_GLYPH[card.rank]}</div>
+              <b className="idx tl">{FACE_GLYPH[card.rank]}<em>{SUIT_GLYPH[card.suit]}</em></b>
+              <b className="idx br">{FACE_GLYPH[card.rank]}<em>{SUIT_GLYPH[card.suit]}</em></b>
+              <div className="court">{FACE_GLYPH[card.rank]}</div>
             </>
           )}
         </div>

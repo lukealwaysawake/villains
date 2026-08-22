@@ -1374,3 +1374,8 @@ input[type="range"] { width: 100%; accent-color: var(--gold); margin-top: 8px; }
 }
 .waitbar .orbit { width: 14px; height: 14px; }
 .acts .btn { font-size: 13px; }
+
+/* ten fit */
+.pcard-front .idx { letter-spacing: -0.04em; }
+.pcard-front .court { font-size: 17px; }
+.pcard-3d.lg .pcard-front .court { font-size: 24px; }

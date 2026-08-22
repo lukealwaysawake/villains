@@ -19,6 +19,9 @@ export const RANK_GLYPH: Record<Rank, string> = {
   14: "A",
 };
 
+/** Card faces show 10; poker notation stays T (T9s). */
+export const FACE_GLYPH: Record<Rank, string> = { ...RANK_GLYPH, 10: "10" };
+
 export function cardKey(card: Card): string {
   return `${RANK_GLYPH[card.rank]}${SUIT_NAME[card.suit]}`;
 }
