@@ -1,10 +1,15 @@
 import { evaluate5, evaluateBest } from "./handRank";
 import { parseCard } from "./cards";
-import { applyAction, createFreshPlayers, positionFor, startHand } from "./game";
+import { applyAction, createFreshPlayers, legalActions, positionFor, startHand } from "./game";
 import { Rng } from "./rng";
 import { canContinueSession, commitHand, createSession, dealNext, defaultProfile, defaultRoom, loadProfile, recordHabit } from "../state/store";
 import type { ReviewCard } from "../review/analyze";
 import { dollarRateStatus, formatSignedDollars, sumKnownDollars } from "../ui/money";
+import { behaviorProbe } from "./sim";
+import { scoreDecision } from "../review/ev";
+import { onHandEnd } from "../villains/runtime";
+import { createRuntime } from "../villains/types";
+import { decideVillain } from "../villains/policy";
 
 let assertions = 0;
 function assert(cond: boolean, msg: string) {
@@ -20,7 +25,22 @@ assert(royal.value > wheel.value, "royal > wheel");
 
 const quads = evaluateBest(["Ah", "Ad", "Ac", "As", "2h", "2d", "9c"].map(parseCard));
 assert(quads.category === 7, "quads");
+const categoryOrder = [
+  evaluate5(["As", "Kd", "9c", "5h", "2s"].map(parseCard)),
+  evaluate5(["As", "Ad", "9c", "5h", "2s"].map(parseCard)),
+  evaluate5(["As", "Ad", "9c", "9h", "2s"].map(parseCard)),
+  evaluate5(["As", "Ad", "Ac", "9h", "2s"].map(parseCard)),
+  evaluate5(["9s", "8d", "7c", "6h", "5s"].map(parseCard)),
+  evaluate5(["As", "Js", "9s", "5s", "2s"].map(parseCard)),
+  evaluate5(["As", "Ad", "Ac", "9h", "9s"].map(parseCard)),
+  evaluate5(["As", "Ad", "Ac", "Ah", "9s"].map(parseCard)),
+  evaluate5(["9s", "8s", "7s", "6s", "5s"].map(parseCard)),
+];
+assert(categoryOrder.every((score, i) => i === 0 || score.value > categoryOrder[i - 1].value), "hand categories should have strict poker ordering");
+
 assert(positionFor(0, 0, 2) === "SB" && positionFor(0, 1, 2) === "BB", "heads-up positions should show SB and BB");
+assert(positionFor(2, 0, 4) === "BB", "four-handed policy should identify the big blind");
+assert(positionFor(2, 3, 4) === "SB", "four-handed policy should identify the small blind");
 assert(formatSignedDollars(undefined) === "—", "unknown dollar conversion must not assume a one-dollar big blind");
 assert(formatSignedDollars(100) === "+$100", "known dollar values should render with a dollar sign");
 const mixedDollars = sumKnownDollars([
@@ -195,4 +215,81 @@ for (let i = 0; i < 40; i++) {
   assert(s.street === "complete", `hand ${i} completed`);
 }
 
-console.log(`selftest ok: ${assertions} assertions; fold continuation, uncontested pots, all-in progress, and session elimination/rebuy rules`);
+const decisionState = startHand({
+  players: createFreshPlayers(["hero", "stationpark"]),
+  button: 0,
+  handNumber: 1,
+  seed: "decision-review",
+});
+decisionState.players[0].hole = [parseCard("As"), parseCard("Ah")];
+const decision = scoreDecision(
+  decisionState,
+  "fold",
+  0,
+  { stationpark: createRuntime("stationpark", 1) },
+  24,
+);
+assert(decision.candidates.length >= 3, "decision review should compare multiple legal choices");
+assert(decision.lossBb > 0, "folding aces should produce a non-zero EV loss");
+assert(decision.played.label === "폴드", "played action should use a localized label");
+
+function replayPolicyHand() {
+  const ids = ["hero", "uncleho", "nitlee", "stationpark"];
+  let hand = startHand({
+    players: createFreshPlayers(ids),
+    button: 2,
+    handNumber: 7,
+    seed: "policy-replay",
+  });
+  const runtimes = Object.fromEntries(ids.slice(1).map((id, i) => [id, createRuntime(id, i + 1)]));
+  let actions = 0;
+  while (hand.street !== "complete" && hand.toAct !== null && actions++ < 100) {
+    const actor = hand.players[hand.toAct];
+    if (actor.id === "hero") {
+      const legal = legalActions(hand, actor.seat);
+      hand = applyAction(hand, legal.canCheck ? "check" : legal.canCall ? "call" : "fold");
+    } else {
+      const move = decideVillain(hand, runtimes[actor.id], 0.78, true);
+      hand = applyAction(hand, move.type, move.raiseTo);
+    }
+  }
+  assert(hand.street === "complete", "deterministic policy replay should finish");
+  return JSON.stringify(hand.actionLog);
+}
+
+assert(replayPolicyHand() === replayPolicyHand(), "the same seed should reproduce the full action log");
+
+function confidenceSequence() {
+  const sequence: string[] = [];
+  for (let handNumber = 1; handNumber <= 64; handNumber++) {
+    const hand = startHand({
+      players: createFreshPlayers(["hero", "vendetta"]),
+      button: handNumber % 2,
+      handNumber,
+      seed: "emotion-replay",
+    });
+    hand.players[1].stack = 12000;
+    hand.street = "complete";
+    hand.toAct = null;
+    hand.result = {
+      winnersByPot: [],
+      shown: {},
+      heroDelta: 0,
+      deltas: { hero: 0, vendetta: 0 },
+    };
+    const runtime = createRuntime("vendetta", 1);
+    onHandEnd({ state: hand, runtimes: { vendetta: runtime }, heroFoldStreak: 0 });
+    sequence.push(runtime.emotion);
+  }
+  return sequence;
+}
+
+const emotions = confidenceSequence();
+assert(emotions.join(",") === confidenceSequence().join(","), "emotion changes should replay from the same seed");
+assert(emotions.includes("CONFIDENT"), "determinism check should exercise the confidence branch");
+
+assert(behaviorProbe(12, 2).length > 0, "heads-up behavior probe should run");
+assert(behaviorProbe(12, 4).length > 0, "four-handed behavior probe should run");
+assert(behaviorProbe(12, 6).length > 0, "six-handed behavior probe should run");
+
+console.log(`selftest ok: ${assertions} assertions; engine flow, dollar provenance, seeded replay, EV review, and 2/4/6-seat probes`);

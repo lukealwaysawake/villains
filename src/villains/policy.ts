@@ -105,7 +105,7 @@ export function decideVillain(
   const seat = state.toAct!;
   const player = state.players[seat];
   const def = VILLAIN_BY_ID[runtime.villainId];
-  const pos = positionFor(state.button, seat);
+  const pos = positionFor(state.button, seat, state.players.length);
   const emo = emotionScale(runtime);
   let stats = applyVendettaTilt(def.id, runtime, mergedStats(def.id, pos));
   stats = {

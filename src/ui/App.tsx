@@ -566,6 +566,7 @@ function Fairness({ session, go }: { session: Session | null; go: (s: Screen) =>
   const [ok, setOk] = useState<string>("");
   const [rows, setRows] = useState<{ id: string; name: string; bb100: number; hands: number }[] | null>(null);
   const [probe, setProbe] = useState<BehaviorRow[] | null>(null);
+  const [probeSeats, setProbeSeats] = useState<2 | 4 | 6>(4);
   return (
     <section className="screen fairness-screen no-nav">
       <PageHeader eyebrow="SYSTEM" title="공정성" onBack={() => go("settings")} backLabel="설정으로 돌아가기" />
@@ -592,8 +593,23 @@ function Fairness({ session, go }: { session: Session | null; go: (s: Screen) =>
       </div>
       <div className="card">
         <b>빌런 성향 검증</b>
-        <p className="kicker">설계값(스펙) 대비 실제 플레이를 측정합니다. 300핸드 자기대전으로 몇 초 걸립니다.</p>
-        <button className="btn wide" onClick={() => setProbe(behaviorProbe(300))}>성향 측정</button>
+        <p className="kicker">설계값(스펙) 대비 실제 플레이를 좌석 수별로 측정합니다. 300핸드 자기대전이라 몇 초 걸립니다.</p>
+        <div className="grid3" aria-label="성향 측정 좌석 수">
+          {([2, 4, 6] as const).map((seats) => (
+            <button
+              key={seats}
+              className={`btn ${probeSeats === seats ? "primary" : ""}`}
+              aria-pressed={probeSeats === seats}
+              onClick={() => {
+                setProbeSeats(seats);
+                setProbe(null);
+              }}
+            >
+              {seats}인
+            </button>
+          ))}
+        </div>
+        <button className="btn wide" onClick={() => setProbe(behaviorProbe(300, probeSeats))}>{probeSeats}인 성향 측정</button>
         {probe && (
           <div className="probe-rows">
             <div className="probe-head">

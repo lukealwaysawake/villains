@@ -1,13 +1,9 @@
 import { scoreDecision } from "./ev";
-import type { TableState } from "../engine/game";
-import type { ActionType } from "../engine/types";
-import type { VillainRuntime } from "../villains/types";
+import type { DecisionSnapshot } from "./ev";
 
 type Job = {
-  state: TableState;
-  runtimes: Record<string, VillainRuntime>;
-  heroType: ActionType;
-  heroRaiseTo: number;
+  id: number;
+  decisions: DecisionSnapshot[];
   samples: number;
   tell: number;
 };
@@ -15,9 +11,18 @@ type Job = {
 self.onmessage = (event: MessageEvent<Job>) => {
   const job = event.data;
   try {
-    const scored = scoreDecision(job.state, job.heroType, job.heroRaiseTo, job.runtimes, job.samples);
-    (self as unknown as Worker).postMessage({ ok: true, scored });
+    const scored = job.decisions.map((decision) =>
+      scoreDecision(
+        decision.snapshot,
+        decision.heroType,
+        decision.heroRaiseTo,
+        decision.runtimes,
+        job.samples,
+        job.tell,
+      ),
+    );
+    (self as unknown as Worker).postMessage({ id: job.id, ok: true, scored });
   } catch (error) {
-    (self as unknown as Worker).postMessage({ ok: false, error: String(error) });
+    (self as unknown as Worker).postMessage({ id: job.id, ok: false, error: String(error) });
   }
 };

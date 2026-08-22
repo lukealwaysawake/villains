@@ -25,7 +25,8 @@ export function equityVsRandom(
   const dead = [...hole, ...board];
   const deck = remaining(dead);
   if (deck.length < 2 + (5 - board.length)) return 0.5;
-  const rng = new Rng(`${seed}:${hole[0].rank}${hole[0].suit}${hole[1].rank}${board.length}:${samples}`);
+  const cards = [...hole, ...board].map(key).join(":");
+  const rng = new Rng(`${seed}:${cards}:${samples}`);
   let wins = 0;
   let ties = 0;
   const need = 5 - board.length;

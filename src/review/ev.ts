@@ -1,5 +1,7 @@
-import { applyAction, legalActions, type TableState } from "../engine/game";
+import { cardKey, makeDeck } from "../engine/cards";
+import { applyAction, cloneState, legalActions, type TableState } from "../engine/game";
 import { readSpot } from "../engine/handRank";
+import { Rng } from "../engine/rng";
 import { chipsToBb, type ActionType, type Street } from "../engine/types";
 import { decideVillain } from "../villains/policy";
 import { createRuntime, type VillainRuntime } from "../villains/types";
@@ -17,6 +19,7 @@ export interface DecisionEv {
   heroAction: { type: ActionType; amount: number };
   candidates: CandidateEv[];
   best: CandidateEv;
+  played: CandidateEv;
   lossBb: number;
 }
 
@@ -24,6 +27,13 @@ function dollarsFromChips(chips: number): string {
   const dollars = Math.round((chips / 100) * 100) / 100;
   const body = dollars % 1 === 0 ? dollars.toFixed(0) : dollars.toFixed(2).replace(/0$/, "");
   return `$${body}`;
+}
+
+export interface DecisionSnapshot {
+  snapshot: TableState;
+  runtimes: Record<string, VillainRuntime>;
+  heroType: ActionType;
+  heroRaiseTo: number;
 }
 
 function heroContinue(state: TableState): { type: ActionType; raiseTo: number } {
@@ -51,11 +61,28 @@ function finish(state: TableState, runtimes: Record<string, VillainRuntime>, tel
       cur = applyAction(cur, move.type, move.raiseTo);
     } else {
       const rt = runtimes[actor.id] ?? createRuntime(actor.id, actor.seat);
-      const d = decideVillain(cur, rt, tell);
+      const d = decideVillain(cur, rt, tell, true);
       cur = applyAction(cur, d.type, d.raiseTo);
     }
   }
   return cur;
+}
+
+function resampleHiddenCards(state: TableState, sample: number): TableState {
+  const next = cloneState(state);
+  const hero = next.players.find((p) => p.id === "hero");
+  const known = [...next.board, ...(hero?.hole ?? [])];
+  const used = new Set(known.map(cardKey));
+  const available = makeDeck().filter((card) => !used.has(cardKey(card)));
+  const rng = new Rng(`${state.seed}:${state.handNumber}:${state.actionLog.length}:decision-ev:${sample}`);
+  const deck = rng.shuffle(available);
+
+  for (const player of next.players) {
+    if (player.id === "hero") continue;
+    player.hole = [deck.pop()!, deck.pop()!];
+  }
+  next.deck = deck;
+  return next;
 }
 
 export function evForAction(
@@ -67,12 +94,22 @@ export function evForAction(
   tell = 0.78,
 ): number {
   let sum = 0;
-  for (let i = 0; i < samples; i++) {
-    const branched = applyAction(state, type, raiseTo);
+  const count = Math.max(1, samples);
+  for (let i = 0; i < count; i++) {
+    const sampled = resampleHiddenCards(state, i);
+    const branched = applyAction(sampled, type, raiseTo);
     const done = finish(branched, runtimes, tell);
     sum += done.result?.heroDelta ?? 0;
   }
-  return chipsToBb(sum / Math.max(1, samples), state.bb);
+  return chipsToBb(sum / count, state.bb);
+}
+
+function actionLabel(type: ActionType, raiseTo: number): string {
+  if (type === "fold") return "폴드";
+  if (type === "check") return "체크";
+  if (type === "call") return "콜";
+  if (type === "allin") return "올인";
+  return `${type === "bet" ? "벳" : "레이즈"} ${dollarsFromChips(raiseTo)}`;
 }
 
 export function candidateList(state: TableState): { type: ActionType; raiseTo: number; label: string }[] {
@@ -86,9 +123,14 @@ export function candidateList(state: TableState): { type: ActionType; raiseTo: n
     const pot = Math.max(legal.pot, state.bb);
     const sizes = [
       { label: "33%", to: Math.min(legal.maxRaiseTo, Math.max(legal.minBet, Math.round(pot * 0.33))) },
+      { label: "75%", to: Math.min(legal.maxRaiseTo, Math.max(legal.minBet, Math.round(pot * 0.75))) },
       { label: "팟", to: Math.min(legal.maxRaiseTo, Math.max(legal.minBet, pot)) },
-      { label: "올인", to: legal.maxRaiseTo },
     ];
+    const player = state.players[state.toAct];
+    const remaining = legal.maxRaiseTo - player.contributedStreet;
+    if (remaining <= pot * 2 || legal.callAmount >= player.stack * 0.35) {
+      sizes.push({ label: "올인", to: legal.maxRaiseTo });
+    }
     const seen = new Set<number>();
     for (const s of sizes) {
       if (seen.has(s.to)) continue;
@@ -134,21 +176,23 @@ export function scoreDecision(
   heroRaiseTo: number,
   runtimes: Record<string, VillainRuntime>,
   samples: number,
+  tell = 0.78,
 ): DecisionEv {
   const cands = candidateList(snapshot);
   const scored: CandidateEv[] = cands.map((c) => ({
     action: c.type,
     raiseTo: c.raiseTo,
     label: c.label,
-    ev: evForAction(snapshot, c.type, c.raiseTo, runtimes, samples),
+    ev: evForAction(snapshot, c.type, c.raiseTo, runtimes, samples, tell),
   }));
-  const played = scored.find((c) => c.action === heroType) ?? {
+  const sized = heroType === "bet" || heroType === "raise" || heroType === "allin";
+  const played = scored.find((c) => c.action === heroType && (!sized || c.raiseTo === heroRaiseTo)) ?? {
     action: heroType,
     raiseTo: heroRaiseTo,
-    label: heroType,
-    ev: evForAction(snapshot, heroType, heroRaiseTo, runtimes, samples),
+    label: actionLabel(heroType, heroRaiseTo),
+    ev: evForAction(snapshot, heroType, heroRaiseTo, runtimes, samples, tell),
   };
-  if (!scored.some((c) => c.action === heroType)) scored.push(played);
+  if (!scored.includes(played)) scored.push(played);
   const best = scored.reduce((a, b) => (b.ev > a.ev ? b : a), scored[0]);
   return {
     index: snapshot.actionLog.length,
@@ -156,6 +200,7 @@ export function scoreDecision(
     heroAction: { type: heroType, amount: heroRaiseTo },
     candidates: scored.sort((a, b) => b.ev - a.ev),
     best,
+    played,
     lossBb: Math.max(0, Math.round((best.ev - played.ev) * 10) / 10),
   };
 }

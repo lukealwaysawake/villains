@@ -3,6 +3,7 @@ import { RANK_GLYPH, SUIT_GLYPH } from "../engine/cards";
 import { describeAction, type TableState } from "../engine/game";
 import { chipsToBb, type ReviewSeverity, type Street } from "../engine/types";
 import { VILLAIN_BY_ID } from "../villains/catalog";
+import type { DecisionEv } from "./ev";
 
 export interface StreetReview {
   street: Street;
@@ -218,6 +219,33 @@ export function analyzeHand(state: TableState): ReviewCard {
     streets: analyzeStreets(state),
     gtoLine: "GTO 기준: 밸런스 혼합. 블러프 빈도는 상대가 폴드하는 만큼만.",
     exploitLine: body,
+  };
+}
+
+export function mergeDecisionScores(review: ReviewCard, scores: DecisionEv[]): ReviewCard {
+  if (scores.length === 0) return review;
+  const worst = scores.reduce((a, b) => (b.lossBb > a.lossBb ? b : a));
+  const loss = Math.max(review.totalLossBb, worst.lossBb);
+  const evDominates = worst.lossBb >= 0.8 && worst.lossBb > review.totalLossBb;
+  const severity: ReviewSeverity = loss >= 5 ? "red" : loss >= 0.8 ? "yellow" : "green";
+  const playedEv = `${worst.played.ev >= 0 ? "+" : ""}${worst.played.ev.toFixed(1)}bb`;
+  const bestEv = `${worst.best.ev >= 0 ? "+" : ""}${worst.best.ev.toFixed(1)}bb`;
+
+  return {
+    ...review,
+    severity,
+    totalLossBb: Math.round(loss * 10) / 10,
+    street: evDominates ? worst.street : review.street,
+    headline: evDominates ? `${STREET_KO[worst.street]} 선택에서 ${worst.lossBb.toFixed(1)}bb 손실` : review.headline,
+    body: evDominates
+      ? `${worst.played.label}의 추정 EV는 ${playedEv}, ${worst.best.label}는 ${bestEv}입니다. 같은 숨은 카드 표본에서 더 나은 선택이 확인됐습니다.`
+      : review.body,
+    alt: evDominates ? `${worst.best.label} 라인을 우선 검토하세요.` : review.alt,
+    statLabel: evDominates ? "간이 EV 차이" : review.statLabel,
+    statValue: evDominates ? `${worst.lossBb.toFixed(1)}bb` : review.statValue,
+    gtoLine: "상대가 모르는 홀카드와 남은 보드를 같은 시드 표본으로 다시 나눠 후보 행동의 기대값을 비교합니다.",
+    exploitLine: `착취 기준 최적: ${worst.best.label} (${bestEv})`,
+    candidates: worst.candidates.map((candidate) => ({ label: candidate.label, ev: candidate.ev })),
   };
 }
 

@@ -4,6 +4,7 @@ import { chipsToBb } from "../engine/types";
 import { PRESETS, STARTER_UNLOCKS, VILLAIN_BY_ID, VILLAINS } from "../villains/catalog";
 import { createRuntime, type VillainRuntime } from "../villains/types";
 import { detectPatterns, type ReviewCard } from "../review/analyze";
+import type { DecisionSnapshot } from "../review/ev";
 
 export type Screen = "home" | "lobby" | "table" | "report" | "dex" | "detail" | "reviews" | "settings" | "onboarding" | "fairness" | "history" | "create-room" | "analyze";
 export interface RoomConfig {
@@ -93,6 +94,7 @@ export interface Session {
   missedExploits: number;
   coachOn: boolean;
   liveTable?: TableState | null;
+  pendingDecisions?: DecisionSnapshot[];
   room?: RoomConfig;
   buyInChips: number;
   heroBuyIns: number;
@@ -282,6 +284,7 @@ export function createSession(villainIds: string[], presetId?: string, opts?: { 
     tutorial: !!opts?.tutorial,
     missedExploits: 0,
     coachOn: !!opts?.tutorial,
+    pendingDecisions: [],
     room,
     buyInChips,
     heroBuyIns: 1,
@@ -364,6 +367,7 @@ export function dealNext(session: Session): TableState {
 }
 
 export function commitHand(profile: Profile, session: Session, state: TableState, review: ReviewCard): void {
+  session.pendingDecisions = [];
   for (const p of state.players) session.stacks[p.id] = p.stack;
   const delta = chipsToBb(state.result?.heroDelta ?? 0, state.bb);
   session.bbDelta += delta;
@@ -508,6 +512,7 @@ export function archiveSession(profile: Profile, session: Session | null | undef
     profile.mastery[id] = m;
   }
   session.liveTable = null;
+  session.pendingDecisions = [];
   profile.lastSession = session;
   saveProfile(profile);
   return profile;

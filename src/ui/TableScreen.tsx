@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { applyAction, continueHand, legalActions, positionFor, sizingPresets, type TableState } from "../engine/game";
-import { analyzeHand, type ReviewCard } from "../review/analyze";
-import { scoreDecisionAsync } from "../review/evClient";
+import { applyAction, cloneState, continueHand, legalActions, positionFor, sizingPresets, type TableState } from "../engine/game";
+import { analyzeHand, mergeDecisionScores, type ReviewCard } from "../review/analyze";
+import type { DecisionSnapshot } from "../review/ev";
+import { scoreDecisionsAsync } from "../review/evClient";
 import { canContinueSession, commitHand, dealNext, persistLive, type Profile, type Session } from "../state/store";
 import { decideVillain, delayFor } from "../villains/policy";
 import { maybeSpeak, onHandEnd, sessionStartLines, updateHeroRead, type SpeechEvent } from "../villains/runtime";
@@ -40,6 +41,8 @@ export function TableScreen({
   const [hudSeat, setHudSeat] = useState<number | null>(null);
   const [showPositions, setShowPositions] = useState(false);
   const [sessionOver, setSessionOver] = useState<string | null>(null);
+  const [finalizing, setFinalizing] = useState(false);
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const committed = useRef(0);
   const boot = useRef(false);
   const heroSince = useRef<number | null>(null);
@@ -48,6 +51,7 @@ export function TableScreen({
     if (boot.current) return;
     boot.current = true;
     const next = structuredClone(sessionRef.current);
+    next.pendingDecisions ??= [];
     if (next.liveTable) {
       setSession(next);
       setTable(next.liveTable);
@@ -64,6 +68,7 @@ export function TableScreen({
       }
     } else {
       const first = dealNext(next);
+      next.pendingDecisions = [];
       next.liveTable = first;
       setSession(next);
       setTable(first);
@@ -131,58 +136,52 @@ export function TableScreen({
     if (!table || table.street !== "complete" || !table.result) return;
     if (committed.current === table.handNumber) return;
     committed.current = table.handNumber;
-    let review = analyzeHand(table);
-    const heroActs = table.actionLog.filter((a) => a.actorId === "hero");
-    const last = heroActs[heroActs.length - 1];
+    setFinalizing(true);
+    setFinalizeError(null);
+    const completedTable = table;
     const nextSession = structuredClone(sessionRef.current);
     const nextProfile = structuredClone(profileRef.current);
-    for (const player of table.players) {
-      if (player.id !== "hero") updateHeroRead(nextSession.runtimes[player.id], table);
-    }
-    const talks = onHandEnd({ state: table, runtimes: nextSession.runtimes, heroFoldStreak: nextSession.heroFoldStreak });
-    if (talks[0]) setSpeech(talks[0]);
-    commitHand(nextProfile, nextSession, table, review);
-    sessionRef.current = nextSession;
-    profileRef.current = nextProfile;
-    setSession(nextSession);
-    setProfile(nextProfile);
-    setBadge(review);
-    if (last && last.type !== "fold") {
-      void scoreDecisionAsync({
-        state: table,
-        runtimes: nextSession.runtimes,
-        heroType: last.type,
-        heroRaiseTo: last.amount,
-        samples: 24,
-        tell: nextProfile.settings.tellDifficulty,
-      }).then((scored) => {
-        if (!scored) return;
-        setBadge((cur) => {
-          if (!cur || cur.handNumber !== review.handNumber) return cur;
-          const loss = Math.max(cur.totalLossBb, scored.lossBb);
-          const severity = loss >= 5 ? "red" : loss >= 0.8 ? "yellow" : "green";
-          const wasReclassified = cur.severity === "green" && severity !== "green";
-          return {
-            ...cur,
-            totalLossBb: loss,
-            candidates: scored.candidates.map((c) => ({ label: c.label, ev: c.ev })),
-            exploitLine: scored.best ? "착취 기준 최적: " + scored.best.label : cur.exploitLine,
-            severity,
-            headline: wasReclassified && scored.best ? `${scored.best.label}가 더 나은 결정` : cur.headline,
-            body: wasReclassified && scored.best ? `간이 EV 비교에서 ${scored.best.label}의 기대값이 더 높았습니다.` : cur.body,
-          };
+    const decisions = nextSession.pendingDecisions ?? [];
+
+    async function finishHand() {
+      let review = analyzeHand(completedTable);
+      try {
+        const scores = await scoreDecisionsAsync({
+          decisions,
+          samples: 48,
+          tell: nextProfile.settings.tellDifficulty,
         });
-      });
-    }
-    const force = nextSession.tutorial && !nextProfile.firstReviewDone;
-    if (force) {
-      nextProfile.firstReviewDone = true;
+        if (scores) review = mergeDecisionScores(review, scores);
+      } catch {
+        // The deterministic rule review remains a safe fallback if the worker fails.
+      }
+
+      nextSession.pendingDecisions = [];
+      for (const player of completedTable.players) {
+        if (player.id !== "hero") updateHeroRead(nextSession.runtimes[player.id], completedTable);
+      }
+      const talks = onHandEnd({ state: completedTable, runtimes: nextSession.runtimes, heroFoldStreak: nextSession.heroFoldStreak });
+      const force = nextSession.tutorial && !nextProfile.firstReviewDone;
+      if (force) nextProfile.firstReviewDone = true;
+      commitHand(nextProfile, nextSession, completedTable, review);
+
+      sessionRef.current = nextSession;
+      profileRef.current = nextProfile;
+      setSession(nextSession);
       setProfile(nextProfile);
+      setBadge(review);
+      if (talks[0]) setSpeech(talks[0]);
+      const cont = canContinueSession(nextSession);
+      setSessionOver(cont.ok ? null : cont.reason);
+      setShowPositions(true);
+      setOpenReview(false);
+      setFinalizing(false);
     }
-    const cont = canContinueSession(nextSession);
-    setSessionOver(cont.ok ? null : cont.reason);
-    setShowPositions(true);
-    setOpenReview(false);
+
+    void finishHand().catch(() => {
+      setFinalizing(false);
+      setFinalizeError("핸드 기록을 저장하지 못했습니다. 새로고침하면 다시 시도합니다.");
+    });
   }, [table, setProfile, setSession]);
 
   function nextHand() {
@@ -193,6 +192,7 @@ export function TableScreen({
       return;
     }
     const s = structuredClone(sessionRef.current);
+    s.pendingDecisions = [];
     setBadge(null);
     setOpenReview(false);
     setShowPositions(false);
@@ -207,6 +207,16 @@ export function TableScreen({
 
   function act(type: "fold" | "check" | "call" | "bet" | "raise" | "allin", to = 0) {
     if (!table) return;
+    const decision: DecisionSnapshot = {
+      snapshot: cloneState(table),
+      runtimes: structuredClone(sessionRef.current.runtimes),
+      heroType: type,
+      heroRaiseTo: to,
+    };
+    const nextSession = structuredClone(sessionRef.current);
+    nextSession.pendingDecisions = [...(nextSession.pendingDecisions ?? []), decision];
+    sessionRef.current = nextSession;
+    setSession(nextSession);
     setRaiseOn(false);
     setTable(applyAction(table, type, to));
   }
@@ -236,7 +246,7 @@ export function TableScreen({
   return (
     <section className="screen play">
       <div className="playhud">
-        <button className="hud-exit" onClick={() => setExitOpen(true)} aria-label="세션 종료 메뉴">종료</button>
+        <button className="hud-exit" disabled={finalizing} onClick={() => setExitOpen(true)} aria-label="세션 종료 메뉴">종료</button>
         <span className="hud-blinds" aria-label={`스몰 블라인드 $${session.room?.sb ?? 0.5}, 빅 블라인드 $${session.room?.bb ?? 1}`}>
           <span><i>SB</i><b>${session.room?.sb ?? 0.5}</b></span>
           <span><i>BB</i><b>${session.room?.bb ?? 1}</b></span>
@@ -321,6 +331,12 @@ export function TableScreen({
 
       {table.street === "complete" && (
         <div className="endbar">
+          {finalizing && (
+            <div className="end-rev" role="status" aria-live="polite">
+              <span>결정별 EV 분석 중</span>
+            </div>
+          )}
+          {finalizeError && <p className="session-over" role="alert">{finalizeError}</p>}
           {sessionOver && <p className="session-over" role="status">{sessionOver}</p>}
           {badge && (
             <button className="end-rev" onClick={() => setShowPositions(true)}>
@@ -382,7 +398,7 @@ export function TableScreen({
             )}
             {deep && hasDeepReview && (
               <div className="deep-review">
-                {badge.gtoLine && <div><b>기본 전략</b><p>{badge.gtoLine}</p></div>}
+                {badge.gtoLine && <div><b>EV 표본 기준</b><p>{badge.gtoLine}</p></div>}
                 {badge.exploitLine && <div><b>상대 맞춤 전략</b><p>{badge.exploitLine}</p></div>}
                 {badge.candidates && badge.candidates.length > 0 && (
                   <div className="candidate-list">

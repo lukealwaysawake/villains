@@ -1,5 +1,6 @@
 import { chipsToBb } from "../engine/types";
 import type { TableState } from "../engine/game";
+import { Rng } from "../engine/rng";
 import { VILLAIN_BY_ID } from "./catalog";
 import type { TriggerType, VillainRuntime } from "./types";
 
@@ -75,7 +76,8 @@ export function onHandEnd(args: {
       const s = maybeSpeak(rt, "SCARED_ENTER", args.state.handNumber);
       if (s) speeches.push(s);
     } else if (p.stack >= 120 * args.state.bb && def.emotionProfile.sensitivity > 0) {
-      if (rt.emotion === "NORMAL" && Math.random() < 0.2) {
+      const rng = new Rng(`${args.state.seed}:${args.state.handNumber}:${def.id}:emotion`);
+      if (rt.emotion === "NORMAL" && rng.chance(0.2)) {
         rt.emotion = "CONFIDENT";
         rt.emotionRemainingHands = 10;
       }

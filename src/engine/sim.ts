@@ -84,15 +84,15 @@ export interface BehaviorRow {
   ok: boolean;
 }
 
-export function behaviorProbe(hands = 600): BehaviorRow[] {
+export function behaviorProbe(hands = 600, seats: 2 | 4 | 6 = 6): BehaviorRow[] {
   const ids = VILLAINS.map((v) => v.id);
   const acc: Record<string, { hands: number; vpip: number; pfr: number; bets: number; calls: number; flop: number; cbet: number }> = {};
   for (const id of ids) acc[id] = { hands: 0, vpip: 0, pfr: 0, bets: 0, calls: 0, flop: 0, cbet: 0 };
 
   for (let n = 0; n < hands; n++) {
     const table: string[] = [];
-    for (let k = 0; k < 6; k++) table.push(ids[(n + k) % ids.length]);
-    const state = playHand(table, n % 6, `probe:${n}`, n + 1);
+    for (let k = 0; k < seats; k++) table.push(ids[(n + k) % ids.length]);
+    const state = playHand(table, n % seats, `probe:${seats}:${n}`, n + 1);
     if (!state.result) continue;
     for (const p of state.players) {
       const a = acc[p.id];
