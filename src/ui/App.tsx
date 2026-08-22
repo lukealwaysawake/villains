@@ -11,6 +11,10 @@ import {
   remainingDailyHands,
   saveProfile,
   sessionPatterns,
+  archiveSession,
+  saveCombo,
+  exportProfile,
+  importProfile,
   type Profile,
   type Screen,
   type Session,
@@ -19,6 +23,7 @@ import { verifyCommit } from "../engine/fairness";
 import { roundRobin } from "../engine/sim";
 import { Avatar, Nav, Stars, signedBb } from "./bits";
 import { TableScreen } from "./TableScreen";
+import { History } from "./History";
 
 export function App() {
   const [profile, setProfileState] = useState<Profile>(() => loadProfile());
@@ -37,6 +42,8 @@ export function App() {
   }
 
   function start(ids: string[], presetId?: string, tutorial = false) {
+    const archived = archiveSession({ ...profile }, session);
+    setProfile(archived);
     const s = createSession(ids, presetId, { tutorial });
     setSession(s);
     setScreen("table");
@@ -59,6 +66,7 @@ export function App() {
       {screen === "lobby" && (
         <Lobby
           profile={profile}
+          setProfile={setProfile}
           custom={custom}
           setCustom={setCustom}
           start={start}
@@ -71,7 +79,11 @@ export function App() {
           setProfile={setProfile}
           session={session}
           setSession={setSession}
-          onExit={() => setScreen("report")}
+          onExit={() => {
+            const next = archiveSession({ ...profile }, session);
+            setProfile(next);
+            setScreen("report");
+          }}
         />
       )}
       {screen === "report" && session && <Report session={session} profile={profile} go={go} />}
@@ -101,6 +113,7 @@ export function App() {
       )}
       {screen === "settings" && <SettingsScreen profile={profile} setProfile={setProfile} go={go} />}
       {screen === "fairness" && <Fairness session={session} go={go} />}
+      {screen === "history" && <History profile={profile} go={go} />}
       <Nav screen={screen} go={go} hidden={screen === "table" || screen === "onboarding"} />
     </div>
   );
@@ -179,6 +192,7 @@ function Home({
         <div className="meter"><i style={{ width: "46%" }} /></div>
       </div>
       <button className="btn launch wide" style={{ margin: "12px 0" }} onClick={() => go("lobby")}>테이블 앉기</button>
+      <button className="btn glass wide" onClick={() => go("history")}>플레이 기록 {profile.lifetimeHands}핸드</button>
       <div className="row" style={{ margin: "8px 0 10px" }}>
         <b>빌런 숙련도</b>
         <button className="btn ghost" onClick={() => go("dex")}>도감</button>
@@ -203,12 +217,14 @@ function Home({
 
 function Lobby({
   profile,
+  setProfile,
   custom,
   setCustom,
   start,
   back,
 }: {
   profile: Profile;
+  setProfile: (p: Profile) => void;
   custom: string[];
   setCustom: (ids: string[]) => void;
   start: (ids: string[], preset?: string) => void;
@@ -258,9 +274,17 @@ function Lobby({
             );
           })}
         </div>
-        <button className="btn launch wide" style={{ marginTop: 10 }} disabled={custom.length !== 5} onClick={() => start(custom)}>
+        <button className="btn glass wide" style={{ marginTop: 10 }} disabled={custom.length !== 5} onClick={() => {
+          setProfile(saveCombo(profile, "조합 " + (profile.savedCombos.length + 1), custom));
+        }}>조합 저장</button>
+        <button className="btn launch wide" style={{ marginTop: 8 }} disabled={custom.length !== 5} onClick={() => start(custom)}>
           커스텀 시작 ({custom.length}/5)
         </button>
+        {profile.savedCombos.map((c) => (
+          <button key={c.name} className="btn glass wide" style={{ marginTop: 8 }} onClick={() => start(c.ids)}>
+            {c.name} 불러 앉기
+          </button>
+        ))}
       </div>
     </section>
   );
@@ -310,6 +334,7 @@ function Report({ session, profile, go }: { session: Session; profile: Profile; 
       <p className="kicker">놓친 착취 {session.missedExploits ?? 0}개 · 놓친 리뷰 {profile.reviewQueue.filter((r) => !r.viewed).length}개</p>
       <button className="btn launch wide" onClick={() => go("home")}>홈으로</button>
       <button className="btn wide" style={{ marginTop: 8 }} onClick={() => go("reviews")}>리뷰 몰아보기</button>
+      <button className="btn glass wide" style={{ marginTop: 8 }} onClick={() => go("history")}>플레이 기록</button>
     </section>
   );
 }
@@ -519,6 +544,23 @@ function SettingsScreen({ profile, setProfile }: { profile: Profile; setProfile:
         <p className="kicker">결제 연동 전 개발 스위치. 켜면 15명, 무제한 핸드, L2/패턴/조건부 HUD가 열립니다.</p>
       </div>
       <button className="btn wide" onClick={() => go("fairness")}>공정성 검증 / 자기대전</button>
+      <button className="btn glass wide" style={{ marginTop: 8 }} onClick={() => {
+        const blob = new Blob([exportProfile(profile)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "villains-profile.json";
+        a.click();
+      }}>기록 내보내기</button>
+      <label className="btn glass wide" style={{ marginTop: 8, display: "grid", placeItems: "center" }}>
+        기록 가져오기
+        <input type="file" accept="application/json" hidden onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          file.text().then((raw) => {
+            try { setProfile(importProfile(raw)); } catch { /* ignore bad file */ }
+          });
+        }} />
+      </label>
     </section>
   );
 }

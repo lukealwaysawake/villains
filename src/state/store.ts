@@ -5,7 +5,7 @@ import { PRESETS, STARTER_UNLOCKS, VILLAIN_BY_ID, VILLAINS } from "../villains/c
 import { createRuntime, type VillainRuntime } from "../villains/types";
 import { detectPatterns, type ReviewCard } from "../review/analyze";
 
-export type Screen = "home" | "lobby" | "table" | "report" | "dex" | "detail" | "reviews" | "settings" | "onboarding" | "fairness";
+export type Screen = "home" | "lobby" | "table" | "report" | "dex" | "detail" | "reviews" | "settings" | "onboarding" | "fairness" | "history";
 export type HudMode = "learn" | "standard" | "split" | "off";
 export type ReviewPause = "off" | "red" | "yellow" | "all";
 
@@ -74,6 +74,29 @@ export interface Profile {
   savedCombos: { name: string; ids: string[] }[];
   daily: { date: string; hands: number };
   firstReviewDone: boolean;
+  sessionHistory: SessionSummary[];
+  handLog: HandLog[];
+}
+
+export interface SessionSummary {
+  id: string;
+  startedAt: number;
+  endedAt: number;
+  presetId?: string;
+  villainIds: string[];
+  handsPlayed: number;
+  bbDelta: number;
+  vpip: number;
+  pfr: number;
+}
+
+export interface HandLog {
+  at: number;
+  sessionId: string;
+  handNumber: number;
+  heroDelta: number;
+  severity: string;
+  headline: string;
 }
 
 const KEY = "villains.v1";
@@ -102,6 +125,8 @@ export function defaultProfile(): Profile {
     savedCombos: [],
     daily: { date: todayKey(), hands: 0 },
     firstReviewDone: false,
+    sessionHistory: [],
+    handLog: [],
   };
 }
 
@@ -118,6 +143,8 @@ export function loadProfile(): Profile {
       mastery: { ...base.mastery, ...(parsed.mastery ?? {}) },
       daily: parsed.daily ?? base.daily,
       savedCombos: parsed.savedCombos ?? [],
+      sessionHistory: parsed.sessionHistory ?? [],
+      handLog: parsed.handLog ?? [],
     };
   } catch {
     return defaultProfile();
@@ -240,8 +267,22 @@ export function commitHand(profile: Profile, session: Session, state: TableState
   else session.heroFoldStreak = 0;
 
   session.reviews.push(review);
-  if (!review.viewed && review.severity !== "green") profile.reviewQueue.unshift(review);
+  if (!review.viewed && review.severity !== "green") {
+    profile.reviewQueue.unshift(review);
+    profile.reviewQueue = profile.reviewQueue.slice(0, 80);
+  }
   profile.lifetimeHands += 1;
+  profile.handLog = [
+    {
+      at: Date.now(),
+      sessionId: session.id,
+      handNumber: session.handNumber,
+      heroDelta: delta,
+      severity: review.severity,
+      headline: review.headline,
+    },
+    ...(profile.handLog ?? []),
+  ].slice(0, 200);
 
   for (const id of session.villainIds) {
     const m = profile.mastery[id] ?? emptyMastery();
@@ -300,4 +341,56 @@ export function presetById(id: string) {
 
 export function villainName(id: string) {
   return VILLAIN_BY_ID[id]?.name ?? id;
+}
+
+export function summarizeSession(session: Session): SessionSummary {
+  const hs = session.heroStats;
+  return {
+    id: session.id,
+    startedAt: session.startedAt,
+    endedAt: Date.now(),
+    presetId: session.presetId,
+    villainIds: [...session.villainIds],
+    handsPlayed: session.handsPlayed,
+    bbDelta: session.bbDelta,
+    vpip: hs.hands ? Math.round((hs.vpip / hs.hands) * 100) : 0,
+    pfr: hs.hands ? Math.round((hs.pfr / hs.hands) * 100) : 0,
+  };
+}
+
+export function archiveSession(profile: Profile, session: Session | null | undefined): Profile {
+  if (!session || session.handsPlayed <= 0) return profile;
+  const sum = summarizeSession(session);
+  const rest = (profile.sessionHistory ?? []).filter((s) => s.id !== sum.id);
+  profile.sessionHistory = [sum, ...rest].slice(0, 30);
+  profile.lastSession = session;
+  saveProfile(profile);
+  return profile;
+}
+
+export function saveCombo(profile: Profile, name: string, ids: string[]): Profile {
+  const next = { ...profile, savedCombos: [{ name, ids }, ...profile.savedCombos.filter((c) => c.name !== name)].slice(0, 12) };
+  saveProfile(next);
+  return next;
+}
+
+export function exportProfile(profile: Profile): string {
+  return JSON.stringify(profile);
+}
+
+export function importProfile(raw: string): Profile {
+  const parsed = JSON.parse(raw) as Partial<Profile>;
+  const base = defaultProfile();
+  const next: Profile = {
+    ...base,
+    ...parsed,
+    settings: { ...base.settings, ...(parsed.settings ?? {}) },
+    mastery: { ...base.mastery, ...(parsed.mastery ?? {}) },
+    daily: parsed.daily ?? base.daily,
+    savedCombos: parsed.savedCombos ?? [],
+    sessionHistory: parsed.sessionHistory ?? [],
+    handLog: parsed.handLog ?? [],
+  };
+  saveProfile(next);
+  return next;
 }
